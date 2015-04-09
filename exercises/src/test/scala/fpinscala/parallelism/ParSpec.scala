@@ -33,6 +33,11 @@ class ParSpecification extends Specification with Matchers {
 
   def concat(a: String, b: String) = s"$a$b"
 
+  def sleepyToUpper(a: String) = {
+    Thread.sleep(500)
+    a.toUpperCase
+  }
+
   "Exercise 7.3".p
 
   "Par.map2" should {
@@ -67,6 +72,17 @@ class ParSpecification extends Specification with Matchers {
       def exec = Par.run(pool)(par).get(700, TimeUnit.MILLISECONDS)
 
       exec must throwA[TimeoutException]
+    }
+  }
+
+  "Exercise 7.4".p
+
+  "Par.asyncF" should {
+    "compute its result asynchronously" in new ThreadPoolContext {
+      val asyncF = Par.asyncF(sleepyToUpper)("future")
+
+      Par.run(pool)(asyncF).get === "FUTURE"
+      threadCount must be_==(1)
     }
   }
 }
