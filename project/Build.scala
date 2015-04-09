@@ -4,6 +4,23 @@ import Keys._
 object FPInScalaBuild extends Build {
   val opts = Project.defaultSettings ++ Seq(
     scalaVersion := "2.11.5",
+    libraryDependencies ++= Seq(
+      "org.specs2" %% "specs2-core" % "3.4" % "test",
+      "org.specs2" %% "specs2-matcher-extra" % "3.4" % "test"
+    ),
+    resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases",
+    scalacOptions in Test ++= Seq("-Yrangepos"),
+    scalacOptions ++= Seq(
+      "-language:postfixOps",
+      "-language:implicitConversions",
+      "-language:higherKinds",
+      "-Yinline-warnings",
+      "-deprecation",
+      "-optimize",
+      "-unchecked",
+      "-encoding", "UTF-8",
+      "-feature"
+    ),
     resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
   )
 
