@@ -85,4 +85,38 @@ class ParSpecification extends Specification with Matchers {
       threadCount must be_==(1)
     }
   }
+
+  "Exercise 7.5".p
+
+  "Par.sequence" should {
+    "combine a list of Par" in new ThreadPoolContext {
+      val range = 1 to 10
+      val asyncF = Par.asyncF(sleepyToUpper)
+
+      val parList = range.map(i => asyncF("future" + i)).toList
+      val result = Par.run(pool)(Par.sequence(parList)).get
+  
+      range.zip(result) foreach {
+        case (i, r) => r must_== s"FUTURE$i"
+      }
+
+      threadCount must be_>=(10)
+      elapsedTime must be_>=(500 millis)
+    }
+
+    "work as part of parMap" in new ThreadPoolContext {
+      val range = 1 to 10 toList
+
+      val par = Par.parMap(range)(i => sleepyToUpper(s"future$i"))
+      val result = Par.run(pool)(par).get
+
+      range.zip(result) foreach {
+        case (i, r) => r must_== s"FUTURE$i"
+      }
+
+      threadCount must be_>=(10)
+      elapsedTime must be_>=(500 millis)
+    }
+  }
+  
 }

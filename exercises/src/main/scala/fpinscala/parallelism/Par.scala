@@ -67,6 +67,16 @@ object Par {
 
   def sortPar(parList: Par[List[Int]]) = map(parList)(_.sorted)
 
+  def sequence[A](ps: List[Par[A]]): Par[List[A]] =
+    ps.foldRight(Par.unit(Nil:List[A]))((p, acc) => {
+      Par.map2(p, acc)(_ :: _)
+    })
+
+  def parMap[A,B](ps: List[A])(f: A => B): Par[List[B]] = fork {
+    val fbs: List[Par[B]] = ps.map(asyncF(f))
+    sequence(fbs)
+  }
+
   def equal[A](e: ExecutorService)(p: Par[A], p2: Par[A]): Boolean = 
     p(e).get == p2(e).get
 
