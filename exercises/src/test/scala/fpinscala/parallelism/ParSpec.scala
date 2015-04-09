@@ -118,5 +118,26 @@ class ParSpecification extends Specification with Matchers {
       elapsedTime must be_>=(500 millis)
     }
   }
+
+  "Exercise 7.6" p
+
+  "Par.parFilter" should {
+    "filter a list in parallel" in new ThreadPoolContext {
+      def filter(i: Int) = {
+        Thread.sleep(500)
+        i > 5
+      }
+      val range = 1 to 10 toList
+
+      val result = Par.run(pool)(Par.parFilter(range)(filter)).get
   
+      result.size must_== 5
+
+      for (r <- result)
+        r must be_>(5) 
+
+      threadCount must be_>=(10)
+      elapsedTime must be_>=(500 millis)
+    }
+  }
 }
