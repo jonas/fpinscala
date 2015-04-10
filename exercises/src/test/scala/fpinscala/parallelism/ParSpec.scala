@@ -184,4 +184,48 @@ class ParSpecification extends Specification with Matchers {
       Par.run(pool)(Examples.countWords(paragraphs)).get === 10000
     }
   }
+
+  "Exercise 7.7" p
+
+  trait ParProofContext extends ThreadPoolContext {
+    import Par._
+
+    // Utility to evaluate and compare two Par constructs
+    class ParOps[A](val par: Par[A]) {
+      def ===(that: Par[A]) = {
+        val l = Par.run(pool)(par).get
+        val r = Par.run(pool)(that).get
+  
+        l mustEqual r
+      }
+    }
+    implicit def compareExecutedPars[A](par: Par[A]) = new ParOps(par)
+  }
+
+  "proof of map(map(y)(g))(f) == map(y)(f compose g)" >> {
+    import Par._
+    def map[A,B](pa: Par[A])(f: A => B): Par[B] = Par.map(pa)(f)
+
+    def f(i: Int) = i + 1
+    def g(i: Int) = i * 2
+    val y = Par.unit(10)
+
+    "map(map(y)(g))(f) == map(y)(f compose g)             : Initial law" in new ParProofContext {
+      map(map(y)(g))(f) === map(y)(f _ compose g _)
+    }
+
+    def id[A](a: A): A = a
+
+    "map(map(y)(id))(f) == map(y)(f compose id)           : Substitute identity function for g" in new ParProofContext {
+      map(map(y)(id))(f) === map(y)(f _ compose id _)
+    }
+
+    "map(map(y)(id))(f) == map(y)(f)                      : Simplify" in new ParProofContext {
+      map(map(y)(id))(f) === map(y)(f)
+    }
+
+    "map(y)(f) == map(y)(f)                               : Substitute using law `map(y)(id) == y`" in new ParProofContext {
+      map(y)(f) === map(y)(f)
+    }
+  }
 }
