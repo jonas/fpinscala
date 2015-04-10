@@ -140,4 +140,48 @@ class ParSpecification extends Specification with Matchers {
       elapsedTime must be_>=(500 millis)
     }
   }
+
+  "Examples in Section 7.3" p
+
+  "Examples.parSum" should {
+    "sum a sequence of ints" in new ThreadPoolContext {
+      val range = 1 to 10 toIndexedSeq
+
+      Par.run(pool)(Examples.parSum(range)).get === 55
+      threadCount must be_>=(10)
+    }
+  }
+
+  "Examples.parIntOp" should {
+    "generalize parSum" in new ThreadPoolContext {
+      val range = 1 to 10 toIndexedSeq
+
+      Par.run(pool)(Examples.parIntOpSum(range)).get === 55
+      threadCount must be_>=(10)
+    }
+
+    "find max value" in new ThreadPoolContext {
+      val range = scala.util.Random.shuffle(1 to 100) toIndexedSeq
+      def max(a: Int, b: Int) = {
+        Thread.sleep(500)
+        if (a > b) a
+        else b
+      }
+
+      Par.run(pool)(Examples.parIntOp(range)(max)).get === 100
+      threadCount must be_>=(10)
+      elapsedTime must be_>=(500 millis)
+    }
+  }
+
+  "Examples.countWords" should {
+    "count all words in a list of paragraphs" in new ThreadPoolContext {
+      val paragraphs = for {
+        p <- 1 to 100
+        w  = 1 to 100 map (s"par$p-" + _)
+      } yield w mkString " "
+  
+      Par.run(pool)(Examples.countWords(paragraphs)).get === 10000
+    }
+  }
 }

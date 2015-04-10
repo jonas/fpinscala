@@ -114,4 +114,40 @@ object Examples {
       sum(l) + sum(r) // Recursively sum both halves and add the results together.
     }
 
+  def parSum(ints: IndexedSeq[Int]): Par[Int] =
+    if (ints.length <= 1)
+      Par.unit(ints.headOption getOrElse 0)
+    else {
+      val (l,r) = ints.splitAt(ints.length/2)
+      Par.map2(Par.fork(parSum(l)), Par.fork(parSum(r)))(_ + _)
+    }
+
+  def parIntOp(ints: IndexedSeq[Int])(f: (Int, Int) => Int): Par[Int] =
+    if (ints.length <= 1)
+      Par.unit(ints.headOption getOrElse 0)
+    else {
+      val (l,r) = ints.splitAt(ints.length/2)
+      Par.map2(Par.fork(parIntOp(l)(f)), Par.fork(parIntOp(r)(f)))(f(_, _))
+    }
+
+  def parIntOpSum(ints: IndexedSeq[Int]) =
+    parIntOp(ints)(_ + _)
+
+  def mapReduce[A,B](as: IndexedSeq[A])(zero: A, map: A => B, reduce: (B, B) => B): Par[B] =
+    if (as.length <= 1)
+      Par.asyncF(map)(as.headOption getOrElse zero)
+    else {
+      val (l, r) = as.splitAt(as.length / 2)
+      val lf = Par.fork(mapReduce(l)(zero, map, reduce))
+      val rf = Par.fork(mapReduce(r)(zero, map, reduce))
+      Par.map2(lf, rf)(reduce(_, _))
+    }
+
+  def countWords(ps: IndexedSeq[String]): Par[Int] = {
+    def map(paragraph: String): Int = paragraph split ("[\\s]") length
+    def reduce(pCount1: Int, pCount2: Int) = pCount1 + pCount2
+
+    mapReduce(ps)("", map, reduce)
+  }
+
 }
