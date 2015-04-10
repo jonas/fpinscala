@@ -7,8 +7,9 @@ import fpinscala.parallelism._
 import org.specs2.mutable.Specification
 import org.specs2.matcher.Matchers
 import org.specs2.specification.Scope
+import org.specs2.matcher.{Matchers,TerminationMatchers}
 
-class ParSpecification extends Specification with Matchers {
+class ParSpecification extends Specification with Matchers with TerminationMatchers {
 
   trait ThreadPoolContext extends Scope {
     private val startTime = System.currentTimeMillis
@@ -226,6 +227,85 @@ class ParSpecification extends Specification with Matchers {
 
     "map(y)(f) == map(y)(f)                               : Substitute using law `map(y)(id) == y`" in new ParProofContext {
       map(y)(f) === map(y)(f)
+    }
+  }
+
+  "Exercise 7.10" p
+
+  "Nonblocking.run" should {
+    "not handle errors" in new ThreadPoolContext {
+      import Nonblocking._
+
+      def deadlock = {
+        def error: String = throw new RuntimeException("error")
+        val failingPar = Par.lazyUnit(error)
+        val deadlockPool = Executors.newCachedThreadPool()
+
+        Par.run(deadlockPool)(failingPar)
+      }
+
+      implicit val ec = Executors.newCachedThreadPool()
+
+      deadlock must not terminate
+    }
+  }
+
+  "Improved implementation of Nonblocking.run" should {
+    import java.util.concurrent.{Callable, CountDownLatch, ExecutorService}
+    import java.util.concurrent.atomic.AtomicReference
+    import java.io.IOException
+    import scala.concurrent.duration._
+    import scala.util.{Try, Success, Failure}
+
+    object ParWithErrorHandling {
+
+      trait FutureE[+A] {
+        private[parallelism] def apply(k: A => Unit)(e: Throwable => Unit): Unit
+      }
+
+      type Par[+A] = ExecutorService => FutureE[A]
+  
+      def runE[A](es: ExecutorService)(p: Par[A]): A = {
+        val ref = new java.util.concurrent.atomic.AtomicReference[Try[A]]
+        val latch = new CountDownLatch(1)
+        def success(a: A) = { ref.set(Success(a)); latch.countDown }
+        def failure(e: Throwable) = { ref.set(Failure(e)); latch.countDown }
+        p(es)(success)(failure)
+        latch.await
+        ref.get.get
+      }
+
+      def unitE[A](a: => A): Par[A] =
+        es => new FutureE[A] {
+          def apply(cb: A => Unit)(eb: Throwable => Unit): Unit =
+            try {
+              cb(a)
+            } catch {
+              case scala.util.control.NonFatal(e) =>
+                eb(e)
+            }
+        }
+
+      def forkE[A](a: => Par[A]): Par[A] =
+        es => new FutureE[A] {
+          def apply(cb: A => Unit)(eb: Throwable => Unit): Unit =
+            eval(es)(a(es)(cb)(eb))
+        }
+
+      def lazyUnitE[A](a: => A): Par[A] =
+        forkE(unitE(a))
+
+      def eval(es: ExecutorService)(r: => Unit): Unit =
+        es.submit(new Callable[Unit] { def call = r })
+    }
+
+    "handle errors" in new ThreadPoolContext {
+      def throwError: String = throw new IOException("error")
+      def failingPar = ParWithErrorHandling.lazyUnitE(throwError)
+
+      implicit val ec = Executors.newCachedThreadPool()
+
+      ParWithErrorHandling.runE(pool)(failingPar) must throwAn[IOException]
     }
   }
 }
