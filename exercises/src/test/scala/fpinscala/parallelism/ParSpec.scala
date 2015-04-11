@@ -388,4 +388,24 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       elapsedTime must be_>=(1000 millis)
     }
   }
+
+  "Exercise 7.14" p
+
+  "Par.join" should {
+    val p = Par.lazyUnit("join")
+    def f(s: String) = Par.lazyUnit(sleepyToUpper(s))
+    val parParA = Par.map(p)(f)
+
+    "should flatten a Par[Par[A]]" in new ThreadPoolContext {
+      Par.run(pool)(Par.join(parParA)).get === "JOIN"
+    }
+
+    "should allow implementation of flatMap" in new ThreadPoolContext {
+      Par.run(pool)(Par.flatMapUsingJoin(p)(f)).get === "JOIN"
+    }
+
+    "implement join using flatMap" in new ThreadPoolContext {
+      Par.run(pool)(Par.joinUsingFlatMap(parParA)).get === "JOIN"
+    }
+  }
 }

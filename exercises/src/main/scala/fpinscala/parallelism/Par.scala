@@ -116,6 +116,18 @@ object Par {
   def chooserChoiceMap[K,V](key: Par[K])(choices: Map[K,Par[V]]): Par[V] =
     chooser(key)(choices(_))
 
+  def flatMap[A,B](p: Par[A])(f: A => Par[B]): Par[B] =
+    chooser(p)(f)
+
+  def join[A](a: Par[Par[A]]): Par[A] =
+    es => run(es)(run(es)(a).get())
+
+  def flatMapUsingJoin[A,B](p: Par[A])(f: A => Par[B]): Par[B] =
+    join(map(p)(f))
+
+  def joinUsingFlatMap[A](a: Par[Par[A]]): Par[A] =
+    flatMap(a)(x => x)
+
   /* Gives us infix syntax for `Par`. */
   implicit def toParOps[A](p: Par[A]): ParOps[A] = new ParOps(p)
 
