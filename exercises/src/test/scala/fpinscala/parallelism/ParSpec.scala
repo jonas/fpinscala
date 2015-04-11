@@ -334,4 +334,21 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
     }
   }
   
+  "Exercise 7.12" p
+
+  "Par.choiceMap" should {
+    "run key lookup and mapper sequentially" in new ThreadPoolContext {
+      val choices = {
+        for (i <- 0 to 50 toList)
+          yield (i, Par.lazyUnit({ Thread.sleep(500); i}))
+      } toMap
+      val n = Par.lazyUnit({ Thread.sleep(500); 42 })
+
+      val result = Par.run(pool)(Par.choiceMap(n)(choices)).get
+  
+      result must_== 42
+      threadCount === 1
+      elapsedTime must be_>=(1000 millis)
+    }
+  }
 }
