@@ -104,6 +104,18 @@ object Par {
   def choiceMap[K,V](key: Par[K])(choices: Map[K,Par[V]]): Par[V] =
     es => choices(run(es)(key).get)(es)
 
+  def chooser[A,B](cond: Par[A])(choices: A => Par[B]): Par[B] =
+    es => choices(run(es)(cond).get)(es)
+
+  def chooserChoice[A](cond: Par[Boolean])(t: Par[A], f: Par[A]): Par[A] =
+    chooser(cond)(x => if (x) t else f)
+
+  def chooserChoiceN[A](n: Par[Int])(choices: List[Par[A]]): Par[A] =
+    chooser(n)(choices(_))
+
+  def chooserChoiceMap[K,V](key: Par[K])(choices: Map[K,Par[V]]): Par[V] =
+    chooser(key)(choices(_))
+
   /* Gives us infix syntax for `Par`. */
   implicit def toParOps[A](p: Par[A]): ParOps[A] = new ParOps(p)
 

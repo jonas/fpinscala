@@ -351,4 +351,41 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       elapsedTime must be_>=(1000 millis)
     }
   }
+
+  "Exercise 7.13" p
+
+  "Par.chooser" should {
+    "allow to implement choice in terms of it" in new ThreadPoolContext {
+      val t = Par.lazyUnit({ Thread.sleep(500); 42 })
+      val f = Par.lazyUnit({ Thread.sleep(500); -1 })
+      val cond = Par.lazyUnit({ Thread.sleep(500); true })
+
+      Par.run(pool)(Par.chooserChoice(cond)(t, f)).get === 42
+      threadCount === 1
+      elapsedTime must be_>=(1000 millis)
+    }
+
+    "allow to implement choiceN in terms of it" in new ThreadPoolContext {
+      val choices =
+        for (i <- 0 to 50 toList)
+          yield Par.lazyUnit({ Thread.sleep(500); i})
+      val n = Par.lazyUnit({ Thread.sleep(500); 42 })
+
+      Par.run(pool)(Par.chooserChoiceN(n)(choices)).get === 42
+      threadCount === 1
+      elapsedTime must be_>=(1000 millis)
+    }
+
+    "allow to implement choiceMap in terms of it" in new ThreadPoolContext {
+      val choices = {
+        for (i <- 0 to 50 toList)
+          yield (i, Par.lazyUnit({ Thread.sleep(500); i}))
+      } toMap
+      val n = Par.lazyUnit({ Thread.sleep(500); 42 })
+
+      Par.run(pool)(Par.chooserChoiceMap(n)(choices)).get === 42
+      threadCount === 1
+      elapsedTime must be_>=(1000 millis)
+    }
+  }
 }
