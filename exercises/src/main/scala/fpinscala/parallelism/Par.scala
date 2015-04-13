@@ -155,16 +155,19 @@ object Examples {
       Par.map2(Par.fork(parSum(l)), Par.fork(parSum(r)))(_ + _)
     }
 
-  def parIntOp(ints: IndexedSeq[Int])(f: (Int, Int) => Int): Par[Int] =
+  def parIntOp(ints: IndexedSeq[Int])(z: Int, f: (Int, Int) => Int): Par[Int] =
     if (ints.length <= 1)
-      Par.unit(ints.headOption getOrElse 0)
+      Par.unit(ints.headOption getOrElse z)
     else {
       val (l,r) = ints.splitAt(ints.length/2)
-      Par.map2(Par.fork(parIntOp(l)(f)), Par.fork(parIntOp(r)(f)))(f(_, _))
+      Par.map2(Par.fork(parIntOp(l)(z, f)), Par.fork(parIntOp(r)(z, f)))(f(_, _))
     }
 
   def parIntOpSum(ints: IndexedSeq[Int]) =
-    parIntOp(ints)(_ + _)
+    parIntOp(ints)(0, _ + _)
+
+  def parIntOpMultiply(ints: IndexedSeq[Int]) =
+    parIntOp(ints)(1, _ * _)
 
   def mapReduce[A,B](as: IndexedSeq[A])(zero: A, map: A => B, reduce: (B, B) => B): Par[B] =
     if (as.length <= 1)

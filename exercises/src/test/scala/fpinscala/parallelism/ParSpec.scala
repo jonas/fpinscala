@@ -161,6 +161,13 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       threadCount must be_>=(10)
     }
 
+    "work for multiplication" in new ThreadPoolContext {
+      val range = 1 to 10 toIndexedSeq
+
+      Par.run(pool)(Examples.parIntOpMultiply(range)).get === 3628800
+      threadCount must be_>=(10)
+    }
+
     "find max value" in new ThreadPoolContext {
       val range = scala.util.Random.shuffle(1 to 100) toIndexedSeq
       def max(a: Int, b: Int) = {
@@ -169,7 +176,7 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
         else b
       }
 
-      Par.run(pool)(Examples.parIntOp(range)(max)).get === 100
+      Par.run(pool)(Examples.parIntOp(range)(Int.MinValue, max)).get === 100
       threadCount must be_>=(10)
       elapsedTime must be_>=(500 millis)
     }
