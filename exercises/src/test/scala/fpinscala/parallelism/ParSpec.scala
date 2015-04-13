@@ -24,13 +24,12 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
     def threadCount = asyncThreadCount.get
   }
 
-  class StringParOps(val s: String) {
+  implicit class StringParOps(val s: String) {
     def after(delay: Duration) = {
       Thread.sleep(delay toMillis)
       Par.unit(s)
     }
   }
-  implicit def string2StringParOps(s: String) = new StringParOps(s)
 
   def concat(a: String, b: String) = s"$a$b"
 
