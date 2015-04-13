@@ -82,7 +82,7 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       val asyncF = Par.asyncF(sleepyToUpper)("future")
 
       Par.run(pool)(asyncF).get === "FUTURE"
-      threadCount must be_==(1)
+      threadCount must be_>=(1)
     }
   }
 
@@ -100,7 +100,7 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
         case (i, r) => r must_== s"FUTURE$i"
       }
 
-      threadCount must be_>=(10)
+      threadCount must be_>=(1)
       elapsedTime must be_>=(500 millis)
     }
 
@@ -114,7 +114,7 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
         case (i, r) => r must_== s"FUTURE$i"
       }
 
-      threadCount must be_>=(10)
+      threadCount must be_>=(1)
       elapsedTime must be_>=(500 millis)
     }
   }
@@ -136,7 +136,7 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       for (r <- result)
         r must be_>(5) 
 
-      threadCount must be_>=(10)
+      threadCount must be_>=(1)
       elapsedTime must be_>=(500 millis)
     }
   }
@@ -148,7 +148,7 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       val range = 1 to 10 toIndexedSeq
 
       Par.run(pool)(Examples.parSum(range)).get === 55
-      threadCount must be_>=(10)
+      threadCount must be_>=(1)
     }
   }
 
@@ -157,14 +157,14 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       val range = 1 to 10 toIndexedSeq
 
       Par.run(pool)(Examples.parIntOpSum(range)).get === 55
-      threadCount must be_>=(10)
+      threadCount must be_>=(1)
     }
 
     "work for multiplication" in new ThreadPoolContext {
       val range = 1 to 10 toIndexedSeq
 
       Par.run(pool)(Examples.parIntOpMultiply(range)).get === 3628800
-      threadCount must be_>=(10)
+      threadCount must be_>=(1)
     }
 
     "find max value" in new ThreadPoolContext {
@@ -176,7 +176,7 @@ class ParSpecification extends Specification with Matchers with TerminationMatch
       }
 
       Par.run(pool)(Examples.parIntOp(range)(Int.MinValue, max)).get === 100
-      threadCount must be_>=(10)
+      threadCount must be_>=(1)
       elapsedTime must be_>=(500 millis)
     }
   }
