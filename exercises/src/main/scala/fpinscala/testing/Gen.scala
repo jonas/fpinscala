@@ -17,10 +17,7 @@ trait Prop {
   def check: Boolean
 
   def &&(that: Prop): Prop =
-    if (this.check)
-      that
-    else
-      new Prop { val check = false }
+    new Prop { def check = Prop.this.check && that.check }
 }
 
 // Implementation of case class Gen - {{{
@@ -28,12 +25,6 @@ package gen_case_class_impl {
   case class Gen[+A](sample: State[RNG,A]) {
 
     def flatMap[B](f: A => Gen[B]): Gen[B] =
-      Gen(State(s => {
-        val (a, s1) = sample.run(s)
-        f(a).sample.run(s1)
-      }))
-
-    def flatMapViaStateFlatMap[B](f: A => Gen[B]): Gen[B] =
       Gen(sample.flatMap(x => f(x).sample))
 
     def listOfN(size: Gen[Int]): Gen[List[A]] =
@@ -50,6 +41,8 @@ package gen_case_class_impl {
         Gen(State(go(n, Nil)))
       })
 
+    def listOfN2(size: Gen[Int]): Gen[List[A]] =
+      size.flatMap(n => Gen.listOfN2(n, this))
   }
 
   object Gen {
@@ -61,6 +54,13 @@ package gen_case_class_impl {
       Gen(State(
         RNG.map(RNG.nonNegativeInt)(i => (i % interval) + start)
       ))
+    }
+
+    def choose2(start: Int, stopExclusive: Int): Gen[Int] = {
+      require(start < stopExclusive)
+      val interval = stopExclusive - start
+
+      Gen(State(RNG.nonNegativeInt).map(i => (i % interval) + start))
     }
 
     def unit[A](a: => A): Gen[A] =
@@ -83,6 +83,9 @@ package gen_case_class_impl {
 
       Gen(State(go(n, Nil)))
     }
+
+    def listOfN2[A](n: Int, g: Gen[A]): Gen[List[A]] =
+      Gen(State.sequence(List.fill(n)(g.sample)))
 
     def union[A](g1: Gen[A], g2: Gen[A]): Gen[A] =
       boolean.flatMap(x => if (x) g1 else g2)
