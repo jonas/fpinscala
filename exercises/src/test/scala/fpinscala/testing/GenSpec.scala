@@ -314,4 +314,21 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       gen.sample.run(RNG.Simple(0))._1 === '*'
     }
   }
+
+  "Exercise 8.12" p
+
+  "Gen.listOf" should {
+    import gen_case_class_impl._
+
+    "defer size specification to SGen evaluation" >> prop { (seed: Int, start: Int, end: Int, sizeSeed: Int) =>
+      (start < end) ==> {
+        val size = listSize(sizeSeed)
+        val sgen = Gen.listOf(Gen.choose(start, end))
+
+        streamOf(sgen.forSize(size), seed) take(SAMPLES) must contain((list: List[Int]) =>
+          list must contain(beBetween(start, end).excludingEnd).forall
+	)
+      }
+    }
+  }
 }

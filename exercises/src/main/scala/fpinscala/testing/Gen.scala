@@ -104,6 +104,8 @@ package gen_case_class_impl {
       Gen(State(RNG.double)).flatMap(d => if (d <= median) g1._1 else g2._1)
     }
 
+    def listOf[A](g: Gen[A]): SGen[List[A]] =
+      SGen(n => Gen.listOfN2(n, g))
   }
 
   case class SGen[+A](forSize: Int => Gen[A]) {
