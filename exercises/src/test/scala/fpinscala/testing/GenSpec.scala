@@ -218,11 +218,11 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.9" p
 
   "Prop.&& and Prop.|| (case class)" should {
-    val Yes = Prop((tests, rng) => Passed)
-    val No  = Prop((tests, rng) => Falsified("#2 failed", 0))
+    val Yes = Prop((max, tests, rng) => Passed)
+    val No  = Prop((max, tests, rng) => Falsified("#2 failed", 0))
 
     def check(prop: Prop) =
-      prop.run(10, RNG.Simple(42))
+      prop.run(42, 42, RNG.Simple(42))
 
     "pass for && if all props pass" in {
       check(Yes && Yes).isFalsified === false

@@ -108,6 +108,9 @@ package prop_trait {
   }
 
   case class SGen[+A](forSize: Int => Gen[A]) {
+    def apply(n: Int): Gen[A] =
+      forSize(n)
+
     def flatMap[B](f: A => Gen[B]): SGen[B] =
       SGen(n => forSize(n).flatMap(f))
 
@@ -139,26 +142,64 @@ case class Falsified(failure: FailedCase, successes: SuccessCount) extends Resul
 
 import Result._
 
-case class Prop(run: (TestCases,RNG) => Result) {
-  def &&(p: Prop): Prop = Prop { (n, rng) =>
-    run(n, rng) match {
+case class Prop(run: (MaxSize,TestCases,RNG) => Result) {
+  def &&(p: Prop): Prop = Prop { (max, n, rng) =>
+    run(max, n, rng) match {
       case Passed =>
-        p.run(n, rng)
+        p.run(max, n, rng)
       case result @ Falsified(_, _) =>
         result
     }
   }
 
-  def ||(p: Prop): Prop = Prop { (n, rng) =>
-    run(n, rng) match {
+  def ||(p: Prop): Prop = Prop { (max, n, rng) =>
+    run(max, n, rng) match {
       case result @ Passed =>
         result
       case Falsified(_, _) =>
-        p.run(n, rng)
+        p.run(max, n, rng)
     }
   }
 }
 
 object Prop {
-  def forAll[A](gen: Gen[A])(f: A => Boolean): Prop = ???
+  type MaxSize = Int
+
+  def run(p: Prop, maxSize: Int = 100, testCases: Int = 100, rng: RNG = RNG.Simple(System.currentTimeMillis)): Unit =
+    p.run(maxSize, testCases, rng) match {
+      case Falsified(msg, n) =>
+        println(s"! Falsified after $n passed tests:\n $msg")
+      case Passed =>
+        println(s"+ OK, passed $testCases tests.")
+    }
+
+  def forAll[A](g: SGen[A])(f: A => Boolean): Prop =
+    forAll(g(_))(f)
+
+  def forAll[A](g: Int => Gen[A])(f: A => Boolean): Prop = Prop { (max,n,rng) =>
+    val casesPerSize = (n + (max - 1)) / max
+    val props: Stream[Prop] =
+      Stream.from(0).take((n min max) + 1).map(i => forAll(g(i))(f))
+    val prop: Prop =
+      props.map(p => Prop { (max, _, rng) =>
+        p.run(max, casesPerSize, rng)
+      }).toList.reduce(_ && _)
+    prop.run(max,n,rng)
+  }
+
+  def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop {
+    (max,n,rng) => randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
+      case (a, i) => try {
+        if (f(a)) Passed else Falsified(a.toString, i)
+      } catch { case e: Exception => Falsified(buildMsg(a, e), i) }
+    }.find(_.isFalsified).getOrElse(Passed)
+  }
+
+  def randomStream[A](g: Gen[A])(rng: RNG): Stream[A] =
+    Stream.unfold(rng)(rng => Some(g.sample.run(rng)))
+
+  def buildMsg[A](s: A, e: Exception): String =
+    s"test case: $s\n" +
+    s"generated an exception: ${e.getMessage}\n" +
+    s"stack trace:\n ${e.getStackTrace.mkString("\n")}"
 }
