@@ -17,6 +17,9 @@ import fpinscala.parallelism.Par.Par
 
 class GenSpec extends Specification with Matchers with ScalaCheck {
 
+  val SAMPLES = 100
+  def listSize(sizeSeed: Int) = math.abs(sizeSeed % 1024) + 1
+
   "Exercise 8.1" p
 
   """
@@ -85,7 +88,7 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       (start < end) ==> {
         val gen = Gen.choose(start, end)
 
-        streamOf(gen, seed) take(100) must contain(beBetween(start, end).excludingEnd).forall
+        streamOf(gen, seed) take(SAMPLES) must contain(beBetween(start, end).excludingEnd).forall
       }
     }
   }
@@ -98,7 +101,7 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
     "generate the same value when given a pure function" >> prop { (seed: Int) =>
       val gen = Gen.unit(42)
 
-      streamOf(gen, seed) take(100) must contain(===(42)).forall
+      streamOf(gen, seed) take(SAMPLES) must contain(===(42)).forall
     }
   }
 
@@ -108,7 +111,7 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
     "generate boolean values" >> prop { (seed: Int) =>
       val gen = Gen.boolean
 
-      streamOf(gen, seed) take(100) must contain(anyOf(true, false))
+      streamOf(gen, seed) take(SAMPLES) must contain(anyOf(true, false))
     }
   }
 
@@ -119,17 +122,17 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       (start < end && n < 1024) ==> {
         val gen = Gen.listOfN(n, Gen.choose(start, end))
 
-        streamOf(gen, seed) take(100) must contain((list: List[Int]) =>
+        streamOf(gen, seed) take(SAMPLES) must contain((list: List[Int]) =>
           list must contain(beBetween(start, end).excludingEnd).forall
 	)
       }
     }
 
-    "generate a list of booleans" >> prop { (seed: Int, nSeed: Int) => {
-        val n = math.abs(nSeed) % 1024 + 1
+    "generate a list of booleans" >> prop { (seed: Int, sizeSeed: Int) => {
+        val n = listSize(sizeSeed)
         val gen = Gen.listOfN(n, Gen.boolean)
 
-        streamOf(gen, seed) take(100) must contain((list: List[Boolean]) =>
+        streamOf(gen, seed) take(SAMPLES) must contain((list: List[Boolean]) =>
           list must contain(anyOf(true, false))
         )
       }
@@ -145,14 +148,14 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       (start < end) ==> {
         val gen = Gen.choose(start, end).flatMap(i => Gen.unit(i.toString))
 
-        streamOf(gen, seed) take(100) must contain(beMatching("-?[0-9]+"))
+        streamOf(gen, seed) take(SAMPLES) must contain(beMatching("-?[0-9]+"))
       }
     }
 
     "allow to create a new string generator based on Gen.boolean" >> prop { (seed: Int) =>
       val gen = Gen.boolean.flatMap(b => Gen.unit(b.toString))
 
-      streamOf(gen, seed) take(100) must contain(anyOf("true", "false"))
+      streamOf(gen, seed) take(SAMPLES) must contain(anyOf("true", "false"))
     }
 
     "allow to create a new case class generator based on Gen.boolean" >> prop { (seed: Int) =>
@@ -161,16 +164,16 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       case object Tails extends CoinSide
       val gen = Gen.boolean.flatMap(b => Gen.unit(if (b) Heads else Tails))
 
-      streamOf(gen, seed) take(100) must contain(anyOf(Heads, Tails))
+      streamOf(gen, seed) take(SAMPLES) must contain(anyOf(Heads, Tails))
     }
 
     "be used to implement Gen.listOfN" >> prop { (seed: Int, start: Int, end: Int, sizeSeed: Int) =>
       (start < end) ==> {
-        val size = math.abs(sizeSeed) % 1024 + 1
-	val sizeGen = Gen.choose(0, size)
+        val size = listSize(sizeSeed)
+        val sizeGen = Gen.choose(0, size)
         val gen = Gen.choose(start, end).listOfN(sizeGen)
 
-        streamOf(gen, seed) take(100) must contain((list: List[Int]) =>
+        streamOf(gen, seed) take(SAMPLES) must contain((list: List[Int]) =>
           list must contain(beBetween(start, end).excludingEnd).forall
 	)
       }
@@ -185,7 +188,7 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
     "allow to combine two int generators" >> prop { (seed: Int) =>
       val gen = Gen.union(Gen.unit(42), Gen.unit(-1))
 
-      streamOf(gen, seed) take(100) must contain(anyOf(42, -1))
+      streamOf(gen, seed) take(SAMPLES) must contain(anyOf(42, -1))
     }
 
     "allow to combine two generators" >> prop { (seed: Int) =>
@@ -194,7 +197,7 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       def evilInts: Int = { i = (i + 1) % ints.size; ints(i) }
       val gen = Gen.union(Gen.unit(evilInts), Gen.boolean)
 
-      streamOf(gen, seed) take(100) must contain(anyOf(1, 2, 3, true, false))
+      streamOf(gen, seed) take(SAMPLES) must contain(anyOf(1, 2, 3, true, false))
     }
   }
 
