@@ -128,6 +128,9 @@ object Par {
   def joinUsingFlatMap[A](a: Par[Par[A]]): Par[A] =
     flatMap(a)(x => x)
 
+  def equal[A](p: Par[A], p2: Par[A]): Par[Boolean] =
+    Par.map2(p, p2)(_ == _)
+
   /* Gives us infix syntax for `Par`. */
   implicit def toParOps[A](p: Par[A]): ParOps[A] = new ParOps(p)
 

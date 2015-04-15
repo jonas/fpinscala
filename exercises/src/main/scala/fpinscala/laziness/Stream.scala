@@ -99,6 +99,9 @@ trait Stream[+A] {
       case _ => None
     })
 
+  def zip[B](that: Stream[B]): Stream[(A, B)] =
+    zipWith(that)((_, _))
+
   // 5.7 map, filter, append, flatmap using foldRight. Part of the exercise is
   // writing your own function signatures.
 
