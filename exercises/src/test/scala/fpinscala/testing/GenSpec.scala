@@ -70,7 +70,7 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   }
 
   // Test helper
-  def streamOf[A](gen: gen_case_class_impl.Gen[A], seed: Int, size: Int = 10): immutable.Stream[A] = {
+  def streamOf[A](gen: Gen[A], seed: Int, size: Int = 10): immutable.Stream[A] = {
     def stream(rng: RNG): immutable.Stream[A] = {
         val (a, rng2) = gen.sample.run(rng)
         immutable.Stream.cons(a, stream(rng2))
@@ -82,8 +82,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.4" p
 
   "Gen.choose" should {
-    import gen_case_class_impl._
-
     "generate integers in range" >> prop { (seed: Int, start: Int, end: Int) =>
       (start < end) ==> {
         val gen = Gen.choose(start, end)
@@ -96,8 +94,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.5" p
 
   "Gen.unit" should {
-    import gen_case_class_impl._
-
     "generate the same value when given a pure function" >> prop { (seed: Int) =>
       val gen = Gen.unit(42)
 
@@ -106,8 +102,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   }
 
   "Gen.boolean" should {
-    import gen_case_class_impl._
-
     "generate boolean values" >> prop { (seed: Int) =>
       val gen = Gen.boolean
 
@@ -116,8 +110,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   }
 
   "Gen.listOfN" should {
-    import gen_case_class_impl._
-
     "generate a list of ints" >> prop { (seed: Int, n: Int, start: Int, end: Int) =>
       (start < end && n < 1024) ==> {
         val gen = Gen.listOfN(n, Gen.choose(start, end))
@@ -142,8 +134,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.6" p
 
   "Gen.flatMap" should {
-    import gen_case_class_impl._
-
     "allow to create a new string generator based on Gen.choose" >> prop { (seed: Int, start: Int, end: Int) =>
       (start < end) ==> {
         val gen = Gen.choose(start, end).flatMap(i => Gen.unit(i.toString))
@@ -183,8 +173,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.7" p
 
   "Gen.union" should {
-    import gen_case_class_impl._
-
     "allow to combine two int generators" >> prop { (seed: Int) =>
       val gen = Gen.union(Gen.unit(42), Gen.unit(-1))
 
@@ -204,8 +192,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.8" p
 
   "Gen.weighted" should {
-    import gen_case_class_impl._
-
     "generate values with probability proportional to the weights" >> prop { (seed: Int) =>
       val gen = Gen.weighted((Gen.unit("yay"), 0.75), (Gen.unit("nay"), 0.25))
 
@@ -269,8 +255,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.10" p
 
   "Gen.unsized" should {
-    import gen_case_class_impl._
-
     "return the original generator regardless of forSize argument" in {
       List(Gen.unit(42), Gen.boolean, Gen.choose(1, 10)) must contain(
         (gen: Gen[_]) => {
@@ -284,8 +268,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.11" p
 
   "SGen.flatMap" should {
-    import gen_case_class_impl._
-
     def generate[A](sgen: SGen[A]): A =
       sgen.forSize(1234).sample.run(RNG.Simple(0))._1
 
@@ -305,8 +287,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   }
 
   "SGen.map" should {
-    import gen_case_class_impl._
-
     "permit creation of new generator based on the original generators" in {
       val sgen = Gen.unit(42).unsized
       val gen = sgen.map(`42` => `42`.toChar).forSize(1234)
@@ -318,8 +298,6 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   "Exercise 8.12" p
 
   "Gen.listOf" should {
-    import gen_case_class_impl._
-
     "defer size specification to SGen evaluation" >> prop { (seed: Int, start: Int, end: Int, sizeSeed: Int) =>
       (start < end) ==> {
         val size = listSize(sizeSeed)

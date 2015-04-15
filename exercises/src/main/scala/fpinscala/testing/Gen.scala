@@ -23,7 +23,6 @@ package prop_trait {
 }
 
 // Implementation of case class Gen - {{{
-package gen_case_class_impl {
   case class Gen[+A](sample: State[RNG,A]) {
 
     def flatMap[B](f: A => Gen[B]): Gen[B] =
@@ -116,7 +115,6 @@ package gen_case_class_impl {
       SGen(n => forSize(n).map(f))
   }
 
-}
 // }}}
 
 object Result {
@@ -164,17 +162,3 @@ case class Prop(run: (TestCases,RNG) => Result) {
 object Prop {
   def forAll[A](gen: Gen[A])(f: A => Boolean): Prop = ???
 }
-
-object Gen {
-  def unit[A](a: => A): Gen[A] = ???
-}
-
-trait Gen[A] {
-  def map[A,B](f: A => B): Gen[B] = ???
-  def flatMap[A,B](f: A => Gen[B]): Gen[B] = ???
-}
-
-trait SGen[+A] {
-
-}
-
