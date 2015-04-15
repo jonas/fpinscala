@@ -13,11 +13,13 @@ The library developed in this chapter goes through several iterations. This file
 shell, which you can fill in and modify while working through the chapter.
 */
 
-trait Prop {
-  def check: Boolean
+package prop_trait {
+  trait Prop {
+    def check: Boolean
 
-  def &&(that: Prop): Prop =
-    new Prop { def check = Prop.this.check && that.check }
+    def &&(that: Prop): Prop =
+      new Prop { def check = Prop.this.check && that.check }
+  }
 }
 
 // Implementation of case class Gen - {{{

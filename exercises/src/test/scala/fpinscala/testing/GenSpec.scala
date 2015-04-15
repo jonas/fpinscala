@@ -43,7 +43,9 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
 
   "Exercise 8.3" p
 
-  "Prop.&&" should {
+  "Prop.&& (trait)" should {
+    import prop_trait.Prop
+
     case object No extends Prop {
       val check = false
     }
