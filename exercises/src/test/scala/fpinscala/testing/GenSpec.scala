@@ -70,7 +70,7 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
   }
 
   // Test helper
-  def streamOf[A](gen: Gen[A], seed: Int, size: Int = 10): immutable.Stream[A] = {
+  def streamOf[A](gen: Gen[A], seed: Int = 42): immutable.Stream[A] = {
     def stream(rng: RNG): immutable.Stream[A] = {
         val (a, rng2) = gen.sample.run(rng)
         immutable.Stream.cons(a, stream(rng2))
@@ -78,6 +78,9 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
 
     stream(RNG.Simple(seed))
   }
+
+  def oneOf[A](gen: Gen[A], seed: Int): A =
+    streamOf(gen, seed) take(1) head
 
   "Exercise 8.4" p
 
@@ -307,6 +310,88 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
           list must contain(beBetween(start, end).excludingEnd).forall
 	)
       }
+    }
+
+    "allow creation of empty lists" in {
+       streamOf(Gen.listOf(Gen.boolean).forSize(0)).head must beEmpty
+    }
+
+    "fail for the maxProp example in the book" in {
+      val smallInt = Gen.choose(-10, 10)
+      val maxProp = Prop.forAll(Gen.listOf(smallInt)) { ns =>
+        val max = ns.max
+        !ns.exists(_ > max)
+      }
+
+      maxProp.run(100, 100, RNG.Simple(System.currentTimeMillis)).isFalsified === true
+    }
+  }
+
+  "Exercise 8.13" p
+
+  "Gen.listOf1" should {
+    "defer size specification to SGen evaluation" >> prop { (seed: Int, start: Int, end: Int, sizeSeed: Int) =>
+      (start < end) ==> {
+        val size = listSize(sizeSeed)
+        val sgen = Gen.listOf1(Gen.choose(start, end))
+
+        streamOf(sgen.forSize(size), seed) take(SAMPLES) must contain((list: List[Int]) =>
+          list must contain(beBetween(start, end).excludingEnd).forall
+	)
+      }
+    }
+
+    "not allow creation of empty lists" in {
+       streamOf(Gen.listOf1(Gen.boolean).forSize(0)).head must not beEmpty
+    }
+
+    "work for the maxProp example in the book" in {
+      val smallInt = Gen.choose(-10, 10)
+      val maxProp = Prop.forAll(Gen.listOf1(smallInt)) { ns =>
+        val max = ns.max
+        !ns.exists(_ > max)
+      }
+
+      maxProp.run(100, 100, RNG.Simple(System.currentTimeMillis)) === Passed
+    }
+  }
+
+  "Exercise 8.14" p
+
+  "List.sorted property" should {
+    implicit class StringPropOps(description: String) {
+      def where(prop: Prop): Prop =
+        prop.withDescription(description)
+    }
+    val smallInt = Gen.choose(-10, 10)
+    val posInt = Gen.choose(1, 10)
+    val sortedProp =
+      ("The head element of a sorted list must be <= all elements in the tail." where
+        Prop.forAll(Gen.listOf1(smallInt)) { ns =>
+          val sorted = ns.sorted
+          sorted.tail.forall(sorted.head <= _)
+        }
+      ) &&
+      ("The last element of a sorted list must be >= all elements before it." where
+        Prop.forAll(Gen.listOf1(smallInt)) { ns =>
+          val sorted = ns.sorted
+          sorted.init.forall(sorted.last >= _)
+        }
+      ) &&
+      ("List of zero or one element equals itself when sorted." where
+        Prop.forAll(Gen.listOf(smallInt)) { ns =>
+          ns.size > 1 || ns.sorted == ns 
+        }
+      ) &&
+      ("List containing the same element equals itself when sorted." where
+        Prop.forAll(posInt) { size =>
+          val list = List.fill(size)(size)
+          list.sorted == list
+        }
+      )
+
+    "pass" in {
+      sortedProp.run(100, 100, RNG.Simple(System.currentTimeMillis)) === Passed
     }
   }
 }

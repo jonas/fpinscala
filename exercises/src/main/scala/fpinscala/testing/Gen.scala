@@ -105,6 +105,9 @@ object Gen {
 
   def listOf[A](g: Gen[A]): SGen[List[A]] =
     SGen(n => Gen.listOfN2(n, g))
+
+  def listOf1[A](g: Gen[A]): SGen[List[A]] =
+    SGen(n => Gen.listOfN2(math.max(n, 1), g))
 }
 
 case class SGen[+A](forSize: Int => Gen[A]) {
@@ -158,6 +161,15 @@ case class Prop(run: (MaxSize,TestCases,RNG) => Result) {
         result
       case Falsified(_, _) =>
         p.run(max, n, rng)
+    }
+  }
+
+  def withDescription(desc: String): Prop = Prop {
+    (max,n,rng) => run(max, n, rng) match {
+      case Falsified(msg, n) =>
+        Falsified(s"$desc: $msg", n)
+      case ok =>
+        ok
     }
   }
 }
