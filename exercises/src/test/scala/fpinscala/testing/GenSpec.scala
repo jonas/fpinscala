@@ -394,4 +394,81 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       sortedProp.run(100, 100, RNG.Simple(System.currentTimeMillis)) === Passed
     }
   }
+
+  "Exercise 8.16" p
+
+  "Gen.parInt" should {
+    "proove map(y)(x => x) == y" in {
+      val p4 = Prop.forAllPar(Gen.parInt(5))(n =>
+        Par.equal(Par.map(n)(y => y), n)
+      )
+
+      p4.run(100, 100, RNG.Simple(System.currentTimeMillis)) === Passed
+    }
+  }
+
+  "Exercise 8.17" p
+
+  "Gen.parInt" should {
+    "proove fork(x) == x" in {
+      val forkProp = Prop.forAllPar(Gen.parInt(5))(n =>
+        Par.equal(Par.fork(n), n)
+      )
+
+      forkProp.run(100, 100, RNG.Simple(System.currentTimeMillis)) === Passed
+    }
+  }
+
+  "Exercise 8.18" p
+
+  "List.takeWhile property" should {
+    implicit class StringPropOps(description: String) {
+      def where(prop: Prop): Prop =
+        prop.withDescription(description)
+    }
+    val smallInt = Gen.choose(-10, 10)
+    val posInt = Gen.choose(1, 10)
+    val takeWhileProp =
+      ("When the predicate is always true, takeWhile should take the whole list." where
+        Prop.forAll(Gen.listOf(smallInt)) { ns =>
+	  ns.takeWhile(_ => true) == ns
+        }
+      ) &&
+      ("When the predicate is always false, takeWhile should return an empty list." where
+        Prop.forAll(Gen.listOf(smallInt)) { ns =>
+	  ns.takeWhile(_ => false) == Nil
+        }
+      ) &&
+      ("All elements in the generated list should satisfy the predicate given to takeWhile." where
+        Prop.forAll(Gen.listOf1(smallInt)) { ns =>
+	  def predicate(i: Int) = i <= ns.head
+	  ns.takeWhile(predicate).forall(predicate)
+        }
+      )
+
+    "pass" in {
+      takeWhileProp.run(100, 100, RNG.Simple(System.currentTimeMillis)) === Passed
+    }
+  }
+
+  "Relationship between List.takeWhile and List.dropWhile" should {
+    implicit class StringPropOps(description: String) {
+      def where(prop: Prop): Prop =
+        prop.withDescription(description)
+    }
+    val smallInt = Gen.choose(-10, 10)
+    val posInt = Gen.choose(1, 10)
+    val takeWhileAndDropWhileProp =
+      ("The concatenated result of takeWhile and dropWhile should equal the original list." where
+        Prop.forAll(Gen.listOf1(smallInt)) { ns =>
+	  def predicate(i: Int) = i <= ns.head
+
+	  ns == (ns.takeWhile(predicate) ++ ns.dropWhile(predicate))
+        }
+      )
+
+    "pass" in {
+      takeWhileAndDropWhileProp.run(100, 100, RNG.Simple(System.currentTimeMillis)) === Passed
+    }
+  }
 }

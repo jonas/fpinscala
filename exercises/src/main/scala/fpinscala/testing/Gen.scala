@@ -28,6 +28,9 @@ case class Gen[+A](sample: State[RNG,A]) {
   def flatMap[B](f: A => Gen[B]): Gen[B] =
     Gen(sample.flatMap(x => f(x).sample))
 
+  def map2[B,C](g: Gen[B])(f: (A,B) => C): Gen[C] =
+    Gen(sample.map2(g.sample)(f))
+
   def map[B](f: A => B): Gen[B] =
     Gen(sample.map(f))
 
@@ -108,6 +111,21 @@ object Gen {
 
   def listOf1[A](g: Gen[A]): SGen[List[A]] =
     SGen(n => Gen.listOfN2(math.max(n, 1), g))
+
+  def parOp[A](g: Gen[A])(op: (A, A) => A): SGen[Par[A]] = SGen(n =>
+    for {
+      size <- choose(1, math.max(0, n) + 1)
+      list <- listOfN(size, g)
+      tail = list.tail.toIndexedSeq
+      zero = list.head
+    } yield Examples.mapReduce(tail)(zero, x => x, op)
+  )
+
+  def parIntOp(g: Gen[Int])(op: (Int, Int) => Int): SGen[Par[Int]] =
+    parOp(g)(op)
+
+  def parInt(n: Int): Gen[Par[Int]] =
+    parIntOp(choose(-10, 10))(_ + _)(n)
 }
 
 case class SGen[+A](forSize: Int => Gen[A]) {
@@ -139,6 +157,10 @@ case object Passed extends Result {
   val isFalsified = false
 }
 
+case object Proved extends Result {
+  val isFalsified = false
+}
+
 case class Falsified(failure: FailedCase, successes: SuccessCount) extends Result {
   val isFalsified = true
 }
@@ -148,7 +170,7 @@ import Result._
 case class Prop(run: (MaxSize,TestCases,RNG) => Result) {
   def &&(p: Prop): Prop = Prop { (max, n, rng) =>
     run(max, n, rng) match {
-      case Passed =>
+      case Passed | Proved=>
         p.run(max, n, rng)
       case result @ Falsified(_, _) =>
         result
@@ -157,7 +179,7 @@ case class Prop(run: (MaxSize,TestCases,RNG) => Result) {
 
   def ||(p: Prop): Prop = Prop { (max, n, rng) =>
     run(max, n, rng) match {
-      case result @ Passed =>
+      case result @ (Passed | Proved) =>
         result
       case Falsified(_, _) =>
         p.run(max, n, rng)
@@ -183,7 +205,22 @@ object Prop {
         println(s"! Falsified after $n passed tests:\n $msg")
       case Passed =>
         println(s"+ OK, passed $testCases tests.")
+      case Proved =>
+        println(s"+ OK, proved property.")
     }
+
+  // Deadlocks with current implementation of Par.
+  val S_weighted = weighted(
+    choose(1,4).map(Executors.newFixedThreadPool) -> .75,
+    unit(Executors.newCachedThreadPool) -> .25) // `a -> b` is syntax sugar for `(a,b)`
+  val S = unit(Executors.newCachedThreadPool)
+
+  def forAllPar[A](g: Gen[A])(f: A => Par[Boolean]): Prop =
+    forAll(S.map2(g)((_,_))) { case (s,a) => f(a)(s).get }
+
+  def check(p: => Boolean): Prop = Prop {
+    (_, _, _) => if (p) Passed else Falsified("check failed", 0)
+  }
 
   def forAll[A](g: SGen[A])(f: A => Boolean): Prop =
     forAll(g(_))(f)
