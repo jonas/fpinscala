@@ -29,6 +29,9 @@ package gen_case_class_impl {
     def flatMap[B](f: A => Gen[B]): Gen[B] =
       Gen(sample.flatMap(x => f(x).sample))
 
+    def map[B](f: A => B): Gen[B] =
+      Gen(sample.map(f))
+
     def listOfN(size: Gen[Int]): Gen[List[A]] =
       size.flatMap(n => {
         @scala.annotation.tailrec
@@ -45,6 +48,10 @@ package gen_case_class_impl {
 
     def listOfN2(size: Gen[Int]): Gen[List[A]] =
       size.flatMap(n => Gen.listOfN2(n, this))
+
+    def unsized: SGen[A] =
+      SGen(_ => this)
+
   }
 
   object Gen {
@@ -98,8 +105,60 @@ package gen_case_class_impl {
     }
 
   }
+
+  case class SGen[+A](forSize: Int => Gen[A]) {
+    def flatMap[B](f: A => Gen[B]): SGen[B] =
+      SGen(n => forSize(n).flatMap(f))
+
+    def map[B](f: A => B): SGen[B] =
+      SGen(n => forSize(n).map(f))
+  }
+
 }
 // }}}
+
+object Result {
+  type FailedCase = String
+  type SuccessCount = Int
+  type TestCases = Int
+}
+
+import Result._
+
+sealed trait Result {
+  def isFalsified: Boolean
+}
+
+case object Passed extends Result {
+  val isFalsified = false
+}
+
+case class Falsified(failure: FailedCase, successes: SuccessCount) extends Result {
+  val isFalsified = true
+}
+
+import Result._
+
+case class Prop(run: (TestCases,RNG) => Result) {
+  def &&(p: Prop): Prop = Prop { (n, rng) =>
+    run(n, rng) match {
+      case Passed =>
+        p.run(n, rng)
+      case result @ Falsified(_, _) =>
+        result
+    }
+  }
+
+  def ||(p: Prop): Prop = Prop { (n, rng) =>
+    run(n, rng) match {
+      case result @ Passed =>
+        result
+      case Falsified(_, _) =>
+        p.run(n, rng)
+    }
+  }
+}
+
 object Prop {
   def forAll[A](gen: Gen[A])(f: A => Boolean): Prop = ???
 }

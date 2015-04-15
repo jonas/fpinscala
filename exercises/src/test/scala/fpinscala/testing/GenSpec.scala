@@ -228,4 +228,90 @@ class GenSpec extends Specification with Matchers with ScalaCheck {
       nayProb must beBetween(0.0, 0.01)
     }
   }
+
+  "Exercise 8.9" p
+
+  "Prop.&& and Prop.|| (case class)" should {
+    val Yes = Prop((tests, rng) => Passed)
+    val No  = Prop((tests, rng) => Falsified("#2 failed", 0))
+
+    def check(prop: Prop) =
+      prop.run(10, RNG.Simple(42))
+
+    "pass for && if all props pass" in {
+      check(Yes && Yes).isFalsified === false
+      check(Yes && Yes && Yes).isFalsified === false
+    }
+
+    "fail for && if any prop is falsified" in {
+      check(No  && No ).isFalsified === true
+      check(No  && Yes).isFalsified === true
+      check(Yes && No ).isFalsified === true 
+      check(Yes && Yes && No).isFalsified === true 
+    }
+
+    "pass for || if any props pass" in {
+      check(Yes || Yes).isFalsified === false
+      check(Yes || No ).isFalsified === false
+      check(No  || Yes).isFalsified === false
+      check(Yes || Yes || Yes).isFalsified === false
+      check(Yes || Yes || No).isFalsified === false 
+      check(No  || No  || Yes).isFalsified === false
+    }
+
+    "fail for || if all props are falsified" in {
+      check(No  || No ).isFalsified === true
+      check(No  || No  || No).isFalsified === true
+      check(No  || No  || No  || No).isFalsified === true
+    }
+  }
+
+  "Exercise 8.10" p
+
+  "Gen.unsized" should {
+    import gen_case_class_impl._
+
+    "return the original generator regardless of forSize argument" in {
+      List(Gen.unit(42), Gen.boolean, Gen.choose(1, 10)) must contain(
+        (gen: Gen[_]) => {
+	  val sgen = gen.unsized
+          (0 to SAMPLES) must contain(
+            (i: Int) => sgen.forSize(i) === gen)
+        })
+    }
+  }
+
+  "Exercise 8.11" p
+
+  "SGen.flatMap" should {
+    import gen_case_class_impl._
+
+    def generate[A](sgen: SGen[A]): A =
+      sgen.forSize(1234).sample.run(RNG.Simple(0))._1
+
+    val f: Int => Char = _.toChar
+    val sgen = Gen.unit(42).unsized
+
+    "allow the definition of SGen.map" in {
+      def flatMapBasedSGenMap[A,B](sgen: SGen[A])(f: A => B): SGen[B] =
+        sgen.flatMap(a => Gen.unit(f(a)))
+
+      generate(flatMapBasedSGenMap(sgen)(f)) === generate(sgen.map(f))
+    }
+
+    "allow creation of new types of generators" in {
+      generate(sgen.flatMap(`42` => Gen.unit(f(`42`)))) === '*'
+    }
+  }
+
+  "SGen.map" should {
+    import gen_case_class_impl._
+
+    "permit creation of new generator based on the original generators" in {
+      val sgen = Gen.unit(42).unsized
+      val gen = sgen.map(`42` => `42`.toChar).forSize(1234)
+
+      gen.sample.run(RNG.Simple(0))._1 === '*'
+    }
+  }
 }
