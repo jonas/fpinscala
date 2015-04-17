@@ -9,12 +9,24 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
   def run[A](p: Parser[A])(input: String): Either[ParseError,A]
 
+  /*
+   * Primitives
+   */
   def flatMap[A,B](p: Parser[A])(f: A => Parser[B]): Parser[B]
+  def succeed[A](a: A): Parser[A]
+  def slice[A](p: Parser[A]): Parser[String]
+  implicit def regex(r: Regex): Parser[String]
+  def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A]
+  implicit def string(s: String): Parser[String]
+
+  /*
+   * Combinators and helpers
+   */
 
   def map[A,B](pa: Parser[A])(f: A => B): Parser[B] =
-    flatMap(pa)(a => unit(f(a)))
+    flatMap(pa)(a => succeed(f(a)))
 
-  def unit[A](a: A): Parser[A] =
+  def defaultUnit[A](a: A): Parser[A] =
     string("") map (_ => a)
 
   def map2[A,B,C](pa: Parser[A], pb: => Parser[B])(f: (A,B) => C): Parser[C] =
@@ -23,36 +35,41 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   def product[A,B](pa: Parser[A], pb: => Parser[B]): Parser[(A,B)] =
     flatMap(pa)(a => map(pb)((a, _)))
 
-  def negate[A](p: Parser[A]): Parser[A]
-  def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A]
-  implicit def string(s: String): Parser[String]
   implicit def operators[A](p: Parser[A]) = ParserOps[A](p)
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
-
-  implicit def regex(r: Regex): Parser[String]
 
   def char(c: Char): Parser[Char] =
     string(c.toString) map (_.charAt(0))
 
   def optional[A](p: Parser[A]): Parser[Option[A]] =
-    or(map(p)(a => Some(a)), unit(None))
+    or(map(p)(a => Some(a)), succeed(None))
 
   def many[A](p: Parser[A]): Parser[List[A]] =
-    or(map2(p, many(p))(_ :: _), unit(Nil))
+    or(map2(p, many(p))(_ :: _), succeed(Nil))
 
   def many1[A](p: Parser[A]) =
     map2(p, many(p))(_ :: _)
 
   def listOfN[A](n: Int, p: Parser[A]): Parser[List[A]] =
     if (n <= 0)
-      unit(Nil)
+      succeed(Nil)
     else
       map2(p, listOfN(n - 1, p))(_ :: _)
 
-  def slice[A](p: Parser[A]): Parser[String]
+  def as[A,B](p: Parser[A], b: B): Parser[B] =
+    p map (_ => b)
 
-  def symbol[A](s: String, a: A): Parser[A] =
-    string(s) map (_ => a)
+  def sep[A](p: Parser[A], s: String): Parser[List[A]] = {
+    def extract(r: (A, List[(String, A)])): List[A] = {
+      val (head, tail) = r
+      head :: (tail map (_._2))
+    }
+
+    (p ~ (s ~ p).many) map (extract(_))
+  }
+
+  def surround[A](left: String, right: String)(p: => Parser[A]): Parser[A] =
+    (left ~ p ~ right) map (_._1._2)
 
   case class ParserOps[A](p: Parser[A]) {
     def map[B](f: A => B): Parser[B] = self.map(p)(f)
@@ -62,13 +79,13 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     def ~[B](p2: => Parser[B]): Parser[(A,B)] = self.product(p,p2)
     def **[B](p2: => Parser[B]): Parser[(A,B)] = self.product(p,p2)
     def product[B](p2: => Parser[B]): Parser[(A,B)] = self.product(p,p2)
-    def unary_![B>:A](): Parser[B] = self.negate(p)
-    def not[B>:A](): Parser[B] = self.negate(p)
     def ?[B>:A](): Parser[Option[B]] = self.optional(p)
     def *[B>:A](): Parser[List[B]] = self.many(p)
     def many[B>:A](): Parser[List[B]] = self.many(p)
     def +[B>:A](): Parser[List[B]] = self.many1(p)
     def slice(): Parser[String] = self.slice(p)
+    def as[B](b: B): Parser[B] = self.as(p, b)
+    def sep(s: String): Parser[List[A]] = self.sep(p, s)
   }
 
   object Laws { self =>
@@ -93,8 +110,8 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     def mapIdentity[A](p: Parser[A]) =
       map(p)(a => a) === p
 
-    def unitLaw[A](a: A) =
-      unit(a) === a
+    def succeedLaw[A](a: A) =
+      succeed(a) === a
 
     def orIsAssociative[A](a: Parser[A], b: Parser[A], c: Parser[A]) =
       ((a | b) | c) === (a | (b | c))
@@ -108,9 +125,6 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
     def productDistributesOverOr[A](a: Parser[A], b: Parser[A], c: Parser[A]) =
       (a ~ (b | c)) === ((a ~ b) | (a ~ c))
-
-    def notIsDistributive[A](a: Parser[A], b: Parser[A]) =
-      (! (a | b)) === ((!b) | (!a))
 
     def many1MeansManyMatches[A](a: Parser[A]) =
       (a +) ==> (a *)
@@ -160,76 +174,16 @@ case class Location(input: String, offset: Int = 0) {
 
 case class ParseError(stack: List[(Location,String)] = List(),
                       otherFailures: List[ParseError] = List()) {
+  def push(loc: Location, msg: String): ParseError =
+    copy(stack = (loc,msg) :: stack)
+
+  def label[A](s: String): ParseError =
+    ParseError(latestLoc.map((_,s)).toList)
+
+  def latest: Option[(Location,String)] =
+    stack.lastOption
+
+  def latestLoc: Option[Location] =
+    latest map (_._1)
 }
 
-trait JSON
-object JSON {
-  case object JNull extends JSON
-  case class JNumber(get: Double) extends JSON
-  case class JString(get: String) extends JSON
-  case class JBool(get: Boolean) extends JSON
-  case class JArray(get: IndexedSeq[JSON]) extends JSON
-  case class JObject(get: Map[String, JSON]) extends JSON
-
-  def parser[Parser[+_]](P: Parsers[Parser]): Parser[JSON] = {
-    import P._
-    val spaces = char(' ').many.slice
-    def token(c: Char) = (spaces ~ char(c) ~ spaces).slice
-
-    val stringLit: Parser[String] = {
-      val quote   = char('"')
-      val hex     = regex("[0-9a-fA-F]".r)
-      val escChar = char('"') | char('\\') | char('/') | char('b') |
-                    char('t') | char('n') | char('r') | char('t') |
-	            listOfN(4, hex)
-      val charEsc = char('\\') ~ escChar
-      val charLit = ! (char('"') | char('\\'))
-      val letters  = (charLit | charEsc).many.slice
-
-      (quote ~ letters ~ quote) map (_._1._2)
-    }
-
-    val jnull:   Parser[JSON]    = symbol("null", JNull)
-
-    val jnumber: Parser[JNumber] = {
-      val sign    = char('-').?
-      val zero    = char('0')
-      val digit1  = regex("[1-9]".r)
-      val digit   = regex("[0-9]".r)
-
-      val integer = sign ~ (zero | (digit1 ~ digit.*))
-      val decimal = char('.') ~ digit.+
-      val exp     = (char('e') | char('E')) ~ (char('+') | char('-')).? ~ digit.+
-
-      val number  = integer ~ decimal.? ~ exp.?
-
-      slice(number) map (d => JNumber(d.toDouble))
-    }
-
-    val jstring: Parser[JString] = stringLit map JString.apply
-
-    val jbool:   Parser[JBool]   = (symbol("true", JBool(true)) | symbol("false", JBool(false)))
-
-    def collection[A](left: Char, member: => Parser[A], right: Char): Parser[List[A]] = {
-      val members: Parser[List[A]] = (member ~ (token(',') ~ member).many) map { x =>
-        val (head, tail: List[(String, A)]) = x
-	head :: (tail map (_._2))
-      }
-
-      (token(left) ~ members ~ token(right)) map (_._1._2)
-    }
-
-    def value :  Parser[JSON]    = jnull | jnumber | jstring | jbool | jarray | jobject
-
-    def jobject: Parser[JObject] = {
-      val prop: Parser[(String, JSON)] = (stringLit ~ token(':')).map(_._1) ~ value
-
-      collection('{', prop, '}') map (props => JObject(props.toMap))
-    }
-
-    def jarray:  Parser[JArray]  =
-      collection('[', value, ']') map (list => JArray(list.toIndexedSeq))
-
-    jobject | jarray
-  }
-}
