@@ -14,7 +14,11 @@ import fpinscala.testing._
 class ParserSpec extends Specification with Matchers { //with ScalaCheck {
 
   val P = fpinscala.parsing.Reference
+
   import fpinscala.parsing.ReferenceTypes.Parser
+  import P._
+  implicit val stringImplicit = P.string _
+  implicit val parserOps = P.operators _
 
   val simpleStringGen = Gen.string('a', 'd')
 
@@ -86,11 +90,16 @@ class ParserSpec extends Specification with Matchers { //with ScalaCheck {
     }
 
     "many map size" in {
+      val numA: Parser[Int] = char('a').many.map(_.size)
+      run(numA)("aaa") mustEqual Right(3)
+      run(numA)("b") mustEqual Right(0)
+
       manyMapSize(P.string("a")) must passWith(Gen.string('a', 'a'))
       manyMapSize2(P.string("a")) must passWith(Gen.string('a', 'a'))
     }
 
     "slice law" in {
+      run(slice((char('a') | char('b')).many))("aaba") mustEqual Right("aaba")
       sliceLaw(P.string("a"), P.string("b")) must passWith(Gen.string('a', 'b'))
     }
 
@@ -98,6 +107,31 @@ class ParserSpec extends Specification with Matchers { //with ScalaCheck {
       val gen = Gen.string().map(s => s"${s.length}$s")
 
       lengthEncodedStringParser must passWith(gen)
+    }
+
+    "char" in {
+      val c = 'z'
+      run(char(c))(c.toString) == Right(c)
+    }
+
+    "succeed" in {
+      run(succeed(7357))("scala") == Right(7357)
+    }
+
+    "string" in {
+      val s = "habla"
+      run(string(s))(s) == Right(s)
+    }
+
+    "or" in {
+      run(or(string("abra"),string("cadabra")))("abra") mustEqual Right("abra")
+      run(or(string("abra"),string("cadabra")))("cadabra") mustEqual Right("cadabra")
+    }
+
+    "listOfN" in {
+      run(listOfN(3, "ab" | "cad").slice)("ababcad") mustEqual Right("ababcad")
+      run(listOfN(3, "ab" | "cad").slice)("cadabab") mustEqual Right("cadabab")
+      run(listOfN(3, "ab" | "cad").slice)("ababab") mustEqual Right("ababab")
     }
   }
 }

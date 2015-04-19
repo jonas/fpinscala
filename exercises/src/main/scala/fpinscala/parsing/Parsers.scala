@@ -82,9 +82,9 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     def product[B](p2: => Parser[B]): Parser[(A,B)] = self.product(p,p2)
     def ?[B>:A](): Parser[Option[B]] = self.optional(p)
     def *[B>:A](): Parser[List[B]] = self.many(p)
-    def many[B>:A](): Parser[List[B]] = self.many(p)
+    def many[B>:A]: Parser[List[B]] = self.many(p)
     def +[B>:A](): Parser[List[B]] = self.many1(p)
-    def slice(): Parser[String] = self.slice(p)
+    def slice: Parser[String] = self.slice(p)
     def as[B](b: B): Parser[B] = self.as(p, b)
     def sep(s: String): Parser[List[A]] = self.sep(p, s)
   }
