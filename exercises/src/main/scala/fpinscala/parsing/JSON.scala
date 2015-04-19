@@ -11,8 +11,7 @@ object JSON {
 
   def parser[Parser[+_]](P: Parsers[Parser]): Parser[JSON] = {
     import P.{string => _, _}
-    val spaces = char(' ').many.slice
-    implicit def token(s: String) = (spaces ~ P.string(s) ~ spaces).slice
+    implicit val token = P.token _
 
     val string: Parser[String] = {
       val quote   = char('"')
@@ -21,7 +20,7 @@ object JSON {
                     char('t') | char('n') | char('r') | char('t') |
 	            listOfN(4, hex)
       val charEsc = char('\\') ~ escChar
-      val charLit = regex("[^\"\\]".r)
+      val charLit = regex("[^\"\\\\]".r)
       val letters  = (charLit | charEsc).many.slice
 
       (quote ~ letters ~ quote) map (_._1._2)
@@ -48,10 +47,10 @@ object JSON {
 
     val jbool:   Parser[JBool]   = "true".as(JBool(true)) | "false".as(JBool(false))
 
-    def value :  Parser[JSON]    = jnull | jnumber | jstring | jbool | jarray | jobject
+    def value :  Parser[JSON]    = (jnull | jnumber | jstring | jbool | jarray | jobject) <* whitespace
 
     def jobject: Parser[JObject] = {
-      val prop: Parser[(String, JSON)] = (string ~ ":").map(_._1) ~ value
+      val prop: Parser[(String, JSON)] = (string <* whitespace <* ":") ~ value
 
       surround("{", "}")(prop sep ",") map (props => JObject(props.toMap))
     }
@@ -59,6 +58,6 @@ object JSON {
     def jarray:  Parser[JArray]  =
       surround("[", "]")(value sep ",") map (list => JArray(list.toIndexedSeq))
 
-    jobject | jarray
+    whitespace *> (jobject | jarray)
   }
 }

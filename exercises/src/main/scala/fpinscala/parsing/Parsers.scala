@@ -36,8 +36,17 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   def product[A,B](pa: Parser[A], pb: => Parser[B]): Parser[(A,B)] =
     flatMap(pa)(a => map(pb)((a, _)))
 
+  def ignoreLeft[A,B](pa: Parser[A], pb: => Parser[B]): Parser[B] =
+    map2(slice(pa), pb)((_, b) => b)
+
+  def ignoreRight[A,B](pa: Parser[A], pb: => Parser[B]): Parser[A] =
+    map2(pa, slice(pb))((a, _) => a)
+
   implicit def operators[A](p: Parser[A]) = ParserOps[A](p)
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
+
+  def whitespace: Parser[String] = "\\s*".r
+  def token(s: String) = (string(s) <* whitespace).slice
 
   def char(c: Char): Parser[Char] =
     string(c.toString) map (_.charAt(0))
@@ -60,16 +69,10 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   def as[A,B](p: Parser[A], b: B): Parser[B] =
     p map (_ => b)
 
-  def sep[A](p: Parser[A], s: String): Parser[List[A]] = {
-    def extract(r: (A, List[(String, A)])): List[A] = {
-      val (head, tail) = r
-      head :: (tail map (_._2))
-    }
+  def sep[A](p: Parser[A], s: Parser[_]): Parser[List[A]] =
+    map2(p, many(s *> p))(_ :: _) or succeed(Nil)
 
-    (p ~ (s ~ p).many) map (extract(_))
-  }
-
-  def surround[A](left: String, right: String)(p: => Parser[A]): Parser[A] =
+  def surround[A](left: Parser[_], right: Parser[_])(p: => Parser[A]): Parser[A] =
     (left ~ p ~ right) map (_._1._2)
 
   case class ParserOps[A](p: Parser[A]) {
@@ -79,6 +82,8 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     def or[B>:A](p2: => Parser[B]): Parser[B] = self.or(p,p2)
     def ~[B](p2: => Parser[B]): Parser[(A,B)] = self.product(p,p2)
     def **[B](p2: => Parser[B]): Parser[(A,B)] = self.product(p,p2)
+    def *>[B](p2: => Parser[B]): Parser[B] = self.ignoreLeft(p,p2)
+    def <*[B](p2: => Parser[B]): Parser[A] = self.ignoreRight(p,p2)
     def product[B](p2: => Parser[B]): Parser[(A,B)] = self.product(p,p2)
     def ?[B>:A](): Parser[Option[B]] = self.optional(p)
     def *[B>:A](): Parser[List[B]] = self.many(p)
@@ -86,7 +91,7 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     def +[B>:A](): Parser[List[B]] = self.many1(p)
     def slice: Parser[String] = self.slice(p)
     def as[B](b: B): Parser[B] = self.as(p, b)
-    def sep(s: String): Parser[List[A]] = self.sep(p, s)
+    def sep[B](p2: Parser[B]): Parser[List[A]] = self.sep(p, p2)
   }
 
   object Laws { self =>
