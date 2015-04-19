@@ -18,6 +18,7 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   implicit def regex(r: Regex): Parser[String]
   def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A]
   implicit def string(s: String): Parser[String]
+  def attempt[A](p: Parser[A]): Parser[A]
 
   /*
    * Combinators and helpers
@@ -93,19 +94,36 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     def equals[A](p1: Parser[A], p2: Parser[A])(input: Gen[String]): Prop =
       forAll(input)(input => run(p1)(input) == run(p2)(input))
 
+    def prequals[A](p1: Parser[A], p2: Parser[A])(input: Gen[String]): Prop =
+      forAll(input)(input => (run(slice(p1))(input), run(slice(p2))(input)) match {
+        case (Left(_), Left(_)) => true
+        case (r1,      r2)      => r1 == r2
+      })
+
     def means[A](p1: Parser[A], p2: Parser[A])(input: Gen[String]): Prop =
       forAll(input)(input => if (run(p1)(input).isRight) run(p2)(input).isRight else true)
 
-    def equals[A](p: Parser[A], r: Either[ParseError,A])(input: Gen[String]): Prop =
+    def equalsEither[A](p: Parser[A], r: Either[ParseError,A])(input: Gen[String]): Prop =
       forAll(input)(input => run(p)(input) == r)
+
+    def equalsMapped[A,B](p: Parser[A], f: String => B)(input: Gen[String]): Prop =
+      forAll(input)(input => run(p)(input) match {
+        case Right(a) => a == f(input)
+        case _        => true /* ignored! */
+      })
 
     case class EvalOps[A](p: Parser[A]) {
       def ===[B>:A](p2: => Parser[B]) = self.equals(p, p2) _
-      def ===[B>:A](p2: Either[ParseError,B]) = self.equals(p, p2) _
+      def =~=[B>:A](p2: => Parser[B]) = self.prequals(p, p2) _
+      def =*=[B](f: String => B) = self.equalsMapped(p, f) _
+      def ===[B>:A](p2: Either[ParseError,B]) = self.equalsEither(p, p2) _
       def ==>[B>:A](p2: => Parser[B]) = self.means(p, p2) _
     }
+
     implicit def evaluator[A](p: Parser[A]) = EvalOps[A](p)
     implicit def right[A](a: A) = Right(a)
+
+    type Law = Gen[String] => Prop
 
     def mapIdentity[A](p: Parser[A]) =
       map(p)(a => a) === p
@@ -117,14 +135,14 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
       ((a | b) | c) === (a | (b | c))
 
     def orIsCommutative[A](a: Parser[A], b: Parser[A]) =
-      (a | b) === (b | a)
+      (a | b) =~= (b | a)
 
     // Exercise 9.2
     def productIsAssociative[A](a: Parser[A], b: Parser[A], c: Parser[A]) =
-      ((a ~ b) ~ c) === (a ~ (b ~ c))
+      ((a ~ b) ~ c) =~= (a ~ (b ~ c))
 
     def productDistributesOverOr[A](a: Parser[A], b: Parser[A], c: Parser[A]) =
-      (a ~ (b | c)) === ((a ~ b) | (a ~ c))
+      (a ~ (b | c)) === (attempt(a ~ b) | attempt(a ~ c))
 
     def many1MeansManyMatches[A](a: Parser[A]) =
       (a +) ==> (a *)
@@ -133,25 +151,17 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
       (a ?) ==> (a *)
 
     /** Spec **/
-    def manyMapSize =
-      run((char('a') *).map(_.size))("aaa") == Right(3)
+    def manyMapSize[A](p: Parser[A]) =
+      (p *).map(_.size) =*= (_.size)
 
-    def manyMapSize2 =
-      run((char('a') *).slice.map(_.size))("aaa") == Right(3)
+    def manyMapSize2[A](p: Parser[A]) =
+      (p *).slice.map(_.size) =*= (_.size)
 
-    def sliceLaw =
-      run(slice((char('a') | char('b')) *))("aaba") == Right("aaba")
+    def sliceLaw[A](p1: Parser[A], p2: Parser[A]) =
+      slice((p1 | p2) *) =*= (identity)
 
     def lengthEncodedStringParser =
-      "[0-9]".r flatMap (length => listOfN(length.toInt, "a"))
-
-    def lengthEncodedStringParser(input: Gen[String]): Prop =
-      forAll(input)(input => {
-        val trimmed = input.substring(0, math.min(9, input.length))
-        val encoded = s"${trimmed.length}${trimmed}"
-
-        run(lengthEncodedStringParser)(encoded) == Right(encoded)
-      })
+      slice("[0-9]+".r flatMap (length => listOfN(length.toInt, "a" | "b"))) =*= (identity)
 
   }
 }

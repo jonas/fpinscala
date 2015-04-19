@@ -83,7 +83,7 @@ object Gen {
     ))
 
   def string(from: Char = 'a', to: Char = 'z'): Gen[String] =
-    Gen.choose(from, to)
+    Gen.choose(from, to + 1)
        .map(_.toChar)
        .listOfN(Gen.choose(0, 20))
        .map(_.mkString)
