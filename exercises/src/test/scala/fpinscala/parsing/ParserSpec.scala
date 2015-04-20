@@ -13,16 +13,16 @@ import fpinscala.testing._
 
 class ParserSpec extends Specification with Matchers { //with ScalaCheck {
 
-  val P = fpinscala.parsing.Reference
-
-  import fpinscala.parsing.ReferenceTypes.Parser
-  import P._
-  implicit val stringImplicit = P.string _
-  implicit val parserOps = P.operators _
-
   val simpleStringGen = Gen.string('a', 'd')
 
   "Executable laws:" >> {
+    val P = fpinscala.parsing.Reference
+
+    import fpinscala.parsing.ReferenceTypes.Parser
+    import P._
+    implicit val stringImplicit = P.string _
+    implicit val parserOps = P.operators _
+
     val Laws = fpinscala.parsing.Reference.Laws
     type ParserLaw = Gen[String] => Prop
  
@@ -135,7 +135,14 @@ class ParserSpec extends Specification with Matchers { //with ScalaCheck {
     }
   }
 
-  "JSON parser" should {
+  "JSON parser based on Reference parser" should {
+    val P = fpinscala.parsing.Reference
+
+    import fpinscala.parsing.ReferenceTypes.Parser
+    import P._
+    implicit val stringImplicit = P.string _
+    implicit val parserOps = P.operators _
+
     import fpinscala.parsing.JSON
     import fpinscala.parsing.JSON._
 
@@ -227,6 +234,107 @@ class ParserSpec extends Specification with Matchers { //with ScalaCheck {
       """
 
       parse(json) === Left(ParseError(List((Location(json, 64), "']'")), Nil))
+    }
+  }
+
+  "JSON parser using KParser implementation" should {
+    val P = fpinscala.parsing.KParsers
+
+    import P._
+    implicit val stringImplicit = P.string _
+    implicit val parserOps = P.operators _
+
+    import fpinscala.parsing.JSON
+    import fpinscala.parsing.JSON._
+
+    def parse(json: String) = run(JSON.parser(P))(json)
+
+    "parse empty object" in {
+      parse("{}") === Right(JObject(Map()))
+      parse(" {} ") === Right(JObject(Map()))
+      parse(" { 	} 	") === Right(JObject(Map()))
+      parse("{	 }") === Right(JObject(Map()))
+    }
+
+    "parse simple object" in {
+      parse("""{"null":null}""") === Right(JObject(Map("null" -> JNull)))
+      parse("""{ "null" : null }""") === Right(JObject(Map("null" -> JNull)))
+      parse("""{ "int" : 42 }""") === Right(JObject(Map("int" -> JNumber(42))))
+      parse("""{ "pi" : 3.14 }""") === Right(JObject(Map("pi" -> JNumber(3.14))))
+      parse("""{ "float" : 1.23e-3 }""") === Right(JObject(Map("float" -> JNumber(0.00123))))
+      parse("""{ "name" : "Alice" }""") === Right(JObject(Map("name" -> JString("Alice"))))
+      parse("""{ "name" : "Mc\"Allen" }""") === Right(JObject(Map("name" -> JString("Mc\\\"Allen"))))
+      parse("""{ "truthy" : true }""") === Right(JObject(Map("truthy" -> JBool(true))))
+      parse("""{ "no" : false }""") === Right(JObject(Map("no" -> JBool(false))))
+      parse("""{ "a": 1 , "b": "B", "c": true }""") ===
+      	Right(JObject(Map("a" -> JNumber(1), "b" -> JString("B"), "c" -> JBool(true))))
+    }
+
+    "parse empty array" in {
+      parse("[]") === Right(JArray(IndexedSeq()))
+      parse(" [ ] ") === Right(JArray(IndexedSeq()))
+      parse("[	] ") === Right(JArray(IndexedSeq()))
+      parse("[ 	]") === Right(JArray(IndexedSeq()))
+    }
+
+    "parse simple array" in {
+      parse("""[null]""")              === Right(JArray(Vector(JNull)))
+      parse("""[ null ]""")            === Right(JArray(Vector(JNull)))
+      parse("""[ 42 ]""")              === Right(JArray(Vector(JNumber(42))))
+      parse("""[ 3.14 ]""")            === Right(JArray(Vector(JNumber(3.14))))
+      parse("""[ 1.23e-3 ]""")         === Right(JArray(Vector(JNumber(0.00123))))
+      parse("""[ "Alice" ]""")         === Right(JArray(Vector(JString("Alice"))))
+      parse("""[ "Mc\"Allen" ]""")     === Right(JArray(Vector(JString("Mc\\\"Allen"))))
+      parse("""[ true ]""")            === Right(JArray(Vector(JBool(true))))
+      parse("""[ false ]""")           === Right(JArray(Vector(JBool(false))))
+      parse("""[ "a", true, 3.14 ]""") === Right(JArray(Vector(JString("a"), JBool(true), JNumber(3.14))))
+    }
+
+    "parse valid JSON" in {
+      val json = """
+        {
+          "Company name" : "Microsoft Corporation",
+          "Ticker"  : "MSFT",
+          "Active"  : true,
+          "Price"   : 30.66,
+          "Shares outstanding" : 8.38e9,
+          "Related companies" : [ "HPQ", "IBM", "YHOO", "DELL", "GOOG" ]
+        }
+      """
+  
+      parse(json) === Right(JObject(Map(
+	"Company name"       -> JString("Microsoft Corporation"),
+	"Ticker"             -> JString("MSFT"),
+	"Active"             -> JBool(true),
+	"Price"              -> JNumber(30.66),
+        "Shares outstanding" -> JNumber(8.38E9),
+	"Related companies"  -> JArray(Vector(
+	  JString("HPQ"), JString("IBM"), JString("YHOO"), JString("DELL"), JString("GOOG"))
+	)
+      )))
+    }
+
+    "fail to parse malformed object property separator" in {
+      val json = """
+        {
+          "Company name" ; "Microsoft Corporation"
+        }
+      """
+ 
+      parse(json) === Left(ParseError(List((Location(json, 36), ":")), Nil))
+    }
+
+    "fail to parse malformed array" in {
+      val json = """
+        [
+          [ "HPQ", "IBM",
+            "YHOO", "DELL" ++
+            "GOOG"
+          ]
+        ]
+      """
+
+      parse(json) === Left(ParseError(List((Location(json, 64), "]")), Nil))
     }
   }
 }
