@@ -28,7 +28,7 @@ object KParser {
         case _ => this
       }
   }
-  case class Success[+A](get: A, charsConsumed: Int) extends Result[A]
+  case class Success[A](get: A, charsConsumed: Int) extends Result[A]
   case class Failure(get: ParseError, isCommitted: Boolean) extends Result[Nothing]
 }
 
@@ -51,7 +51,7 @@ object KParsers extends Parsers[KParser] {
       case Success(a, n) => g(a).run(loc.advanceBy(n))
                                 .addCommit(n != 0)
                                 .advanceSuccess(n)
-      case e @ Failure(_, _) => e
+      case e: Failure => e
     }
   }
 
@@ -67,16 +67,10 @@ object KParsers extends Parsers[KParser] {
       p.run(loc) match {
         case Success(a, chars) =>
 	  if (chars > 0)
-	    try {
-	      Success(slicedString(loc, chars), chars)
-	    } catch {
-	      case e: Exception =>
-	        println(s"[$loc] $chars ~ ${loc.input.substring(loc.offset)}")
-	        Success("", chars)
-	    }
+	    Success(slicedString(loc, chars), chars)
 	  else
 	    Success("", chars)
-        case error @ Failure(_, _) => error
+        case e: Failure => e
       }
     }
   }
@@ -94,7 +88,7 @@ object KParsers extends Parsers[KParser] {
     loc => {
       s1.run(loc) match {
         case Failure(error, false) => s2.run(loc)
-        case s1Result => s1Result
+        case r => r
       }
     }
   }
