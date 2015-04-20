@@ -82,6 +82,12 @@ object Gen {
       RNG.map(RNG.int)(_ % 2 == 0)
     ))
 
+  def string(from: Char = 'a', to: Char = 'z'): Gen[String] =
+    Gen.choose(from, to + 1)
+       .map(_.toChar)
+       .listOfN(Gen.choose(0, 20))
+       .map(_.mkString)
+
   def listOfN[A](n: Int, g: Gen[A]): Gen[List[A]] = {
     @scala.annotation.tailrec
     def go(count: Int, l: List[A])(rng: RNG): (List[A], RNG) = 
