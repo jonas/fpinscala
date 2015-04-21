@@ -23,7 +23,7 @@ object JSON {
       val charLit = regex("[^\"\\\\]".r)
       val letters  = (charLit | charEsc).many.slice
 
-      (quote ~ letters ~ quote) map (_._1._2)
+      (quote *> letters <* quote)
     }
 
     val jnull:   Parser[JSON]    = "null".as(JNull)
