@@ -20,60 +20,102 @@ object Monoid {
     val zero = Nil
   }
 
-  val intAddition: Monoid[Int] = sys.error("todo")
+  val intAddition: Monoid[Int] = new Monoid[Int] {
+    def op(a1: Int, a2: Int) = a1 + a2
+    val zero = 0
+  }
 
-  val intMultiplication: Monoid[Int] = sys.error("todo")
+  val intMultiplication: Monoid[Int] = new Monoid[Int] {
+    def op(a1: Int, a2: Int) = a1 * a2
+    val zero = 1
+  }
 
-  val booleanOr: Monoid[Boolean] = sys.error("todo")
+  val booleanOr: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(a1: Boolean, a2: Boolean) = a1 || a2
+    val zero = false
+  }
 
-  val booleanAnd: Monoid[Boolean] = sys.error("todo")
+  val booleanAnd: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(a1: Boolean, a2: Boolean) = a1 && a2
+    val zero = true
+  }
 
-  def optionMonoid[A]: Monoid[Option[A]] = sys.error("todo")
+  def optionMonoid[A]: Monoid[Option[A]] = new Monoid[Option[A]] {
+    def op(a1: Option[A], a2: Option[A]) = a1 orElse a2
+    val zero = None
+  }
 
-  def endoMonoid[A]: Monoid[A => A] = sys.error("todo")
-
-  // TODO: Placeholder for `Prop`. Remove once you have implemented the `Prop`
-  // data type from Part 2.
-  trait Prop {}
-
-  // TODO: Placeholder for `Gen`. Remove once you have implemented the `Gen`
-  // data type from Part 2.
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    def op(a1: A => A, a2: A => A) = a1 compose a2
+    val zero = (a: A) => a
+  }
 
   import fpinscala.testing._
   import Prop._
-  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = sys.error("todo")
+  def monoidLaws[A](m: Monoid[A], g: Gen[A]): Prop = {
+    val triple: Gen[(A, A, A)] =
+      for { a <- g; b <- g; c <- g } yield (a, b, c)
+
+    val opsAssociativity = Prop.forAll(triple) {
+      case (a, b, c) => m.op(m.op(a, b), c) == m.op(a, m.op(b, c))
+    }
+
+    val zeroIdentity = Prop.forAll(g) {
+      a => m.op(m.zero, a) == m.op(a, m.zero)
+    }
+
+    opsAssociativity && zeroIdentity
+  }
+
 
   def trimMonoid(s: String): Monoid[String] = sys.error("todo")
 
   def concatenate[A](as: List[A], m: Monoid[A]): A =
-    sys.error("todo")
+    as.foldLeft(m.zero)(m.op)
 
   def foldMap[A, B](as: List[A], m: Monoid[B])(f: A => B): B =
-    sys.error("todo")
+    as.foldLeft(m.zero) { (b, a) => m.op(b, f(a)) }
 
   def foldRight[A, B](as: List[A])(z: B)(f: (A, B) => B): B =
-    sys.error("todo")
+    foldMap(as, endoMonoid: Monoid[B => B])(f curried)(z)
 
   def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
-    sys.error("todo")
+    foldMap(as, endoMonoid: Monoid[B => B])(a => b => f(b, a))(z)
 
   def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
-    sys.error("todo")
+    if (as.size <= 1)
+      as.headOption map(f) getOrElse m.zero
+    else { 
+      val (l, r) = as.splitAt(as.length / 2)
+      m.op(foldMapV(l, m)(f), foldMapV(r, m)(f))
+    }
 
   def ordered(ints: IndexedSeq[Int]): Boolean =
-    sys.error("todo")
+    foldMapV(ints, endoMonoid: Monoid[Int => Int])(
+      a => b => if (a <= b) a else Int.MinValue
+    )(ints.lastOption.getOrElse(Int.MaxValue)) > Int.MinValue
 
   sealed trait WC
   case class Stub(chars: String) extends WC
   case class Part(lStub: String, words: Int, rStub: String) extends WC
 
   def par[A](m: Monoid[A]): Monoid[Par[A]] = 
-    sys.error("todo")
+    new Monoid[Par[A]] {
+      def op(a1: Par[A], a2: Par[A]) = (a1 map2 a2)(m.op(_, _))
+      val zero = Par.unit(m.zero)
+    }
 
-  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = 
-    sys.error("todo") 
+  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
+    if (v.length <= 1)
+      Par.asyncF((a: Option[A]) => a map(f) getOrElse(m.zero))(v.headOption)
+    else {
+      val (l, r) = v.splitAt(v.length / 2)
+      val lf = Par.fork(parFoldMap(l, m)(f))
+      val rf = Par.fork(parFoldMap(r, m)(f))
+      Par.map2(lf, rf)(m.op(_, _))
+    }
 
-  val wcMonoid: Monoid[WC] = sys.error("todo")
+  def wcMonoid: Monoid[WC] = sys.error("todo")
 
   def count(s: String): Int = sys.error("todo")
 
