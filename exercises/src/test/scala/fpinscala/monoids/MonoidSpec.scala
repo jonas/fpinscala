@@ -166,8 +166,10 @@ class MonoidSpec extends Specification with Matchers {
 
   "ordered" should {
     "succeed for ordered list of integers" in {
+      ordered(Vector()) === true
       ordered(1 to 10 toIndexedSeq) === true
       ordered(Vector(1, 2, 3, 5, 8, 13, 21, 34, 55)) === true
+      ordered(Vector(82, 82, 93)) === true
 
       Prop.forAll(Gen.choose(-100, 100) listOfN Gen.choose(0, 100) map (_.toIndexedSeq)) { ints =>
         ordered(ints.sorted) == true
@@ -180,11 +182,202 @@ class MonoidSpec extends Specification with Matchers {
         if (ints.length <= 1)
 	  true
 	else
-	  ints(0) < ints(1) && isSorted(ints.tail)
+	  ints(0) <= ints(1) && isSorted(ints.tail)
 
       Prop.forAll(Gen.choose(-100, 100) listOfN Gen.choose(0, 100) map (_.toIndexedSeq)) { ints =>
         if (isSorted(ints)) true else ordered(ints) == false
       } must pass
+    }
+  }
+
+  "Exercise 10.10" p
+
+  "wcMonoid" should {
+    "adhere to the monoid laws" in {
+      val wcGen: Gen[WC] =
+        for { b <- Gen.boolean; l <- Gen.string(); c <- Gen.choose(0, 20); r <- Gen.string() }
+	  yield if (b) Part(l, c, r) else Stub(l + r)
+
+      monoidLaws(wcMonoid, wcGen) must pass
+    }
+  }
+
+  "Exercise 10.11" p
+
+  "count" should {
+    "handle strings without words" in {
+      count("") === 0
+      count("""		
+      """) === 0
+    }
+
+    "find all words in a text" in {
+      count("word") === 1
+      count("""
+This repository contains exercises, hints, and answers for the book
+[Functional Programming in Scala](http://manning.com/bjarnason/). Along
+with the book itself, it's the closest you'll get to having your own
+private functional programming tutor without actually having one.
+
+Here's how to use this repository:
+
+Each chapter in the book develops a fully working library of functions
+and data types, built up through a series of exercises and example code
+given in the book text. The shell of this working library and exercise
+stubs live in
+`exercises/src/main/scala/fpinscala/<chapter-description>`, where
+`<chapter-description>` is a package name that corresponds to the
+chapter title (see below). When you begin working on a chapter, we
+recommend you open the exercise file(s) for that chapter, and when you
+encounter exercises, implement them in the exercises file and make sure
+they work.
+      """) === 131
+    }
+  }
+
+  "Exercise 10.12" p
+
+  def FoldableSpecs[F[_]](foldable: Foldable[F], empty: Option[F[Int]], oneToFive: F[Int], numbers: F[String]) = {
+    import foldable._
+
+    foldable.getClass.getSimpleName.replace("$", "") should {
+      "provide foldRight" in {
+        if (empty.isDefined) {
+          foldRight(empty.get)(intAddition.zero)(intAddition.op) === 0
+	}
+        foldRight(oneToFive)(intAddition.zero)(intAddition.op) === 15
+        foldRight(numbers)(stringMonoid.zero)(stringMonoid.op) === "12345"
+      }
+ 
+      "provide foldLeft" in {
+        if (empty.isDefined) {
+          foldLeft(empty.get)(intAddition.zero)(intAddition.op) === 0
+	}
+        foldLeft(oneToFive)(intAddition.zero)(intAddition.op) === 15
+        foldLeft(numbers)(stringMonoid.zero)(stringMonoid.op) === "12345"
+      }
+ 
+      "provide foldMap" in {
+        if (empty.isDefined) {
+          foldMap(empty.get)(identity)(intAddition) === 0
+	}
+        foldMap(oneToFive)(identity)(intAddition) === 15
+        foldMap(oneToFive)(_.toString)(stringMonoid) === "12345"
+      }
+ 
+      "provide concatenate" in {
+        if (empty.isDefined) {
+          concatenate(empty.get)(intAddition) === 0
+	}
+        concatenate(oneToFive)(intAddition) === 15
+        concatenate(numbers)(stringMonoid) === "12345"
+      }
+ 
+      "provide toList" in {
+        if (empty.isDefined) {
+          toList(empty.get) === Nil
+	}
+        toList(oneToFive) === List(1, 2, 3, 4, 5)
+        toList(numbers) === List("1", "2", "3", "4", "5")
+      }
+    }
+  }
+
+  FoldableSpecs(ListFoldable,
+    Some(List.empty[Int]),
+    List(1, 2, 3, 4, 5),
+    List(1, 2, 3, 4, 5) map(_.toString)
+  )
+
+  FoldableSpecs(IndexedSeqFoldable,
+    Some(Vector.empty[Int]),
+    Vector(1, 2, 3, 4, 5),
+    Vector(1, 2, 3, 4, 5) map(_.toString)
+  )
+
+  FoldableSpecs(StreamFoldable,
+    Some(Stream.empty[Int]),
+    Stream(1, 2, 3, 4, 5),
+    Stream(1, 2, 3, 4, 5) map(_.toString)
+  )
+
+  "Exercise 10.13" p
+
+  FoldableSpecs(TreeFoldable,
+    None,
+    Branch(
+      Branch(
+        Leaf(1),
+	Leaf(2)
+      ),
+      Branch(
+        Branch(
+	  Leaf(3),
+	  Leaf(4)
+	),
+	Leaf(5)
+      )
+    ),
+    Branch(
+      Branch(
+        Leaf("1"),
+	Leaf("2")
+      ),
+      Branch(
+        Branch(
+	  Leaf("3"),
+	  Leaf("4")
+	),
+	Leaf("5")
+      )
+    )
+  )
+
+  "Exercise 10.14" p
+
+  "OptionFoldable" should {
+    import OptionFoldable._
+
+    "provide foldRight" in {
+      foldRight(None)(intAddition.zero)(intAddition.op) === 0
+      foldRight(Some(15))(intAddition.zero)(intAddition.op) === 15
+      foldRight(Some("12345"))(stringMonoid.zero)(stringMonoid.op) === "12345"
+    }
+ 
+    "provide foldLeft" in {
+      foldLeft(None)(intAddition.zero)(intAddition.op) === 0
+      foldLeft(Some(15))(intAddition.zero)(intAddition.op) === 15
+      foldLeft(Some("12345"))(stringMonoid.zero)(stringMonoid.op) === "12345"
+    }
+ 
+    "provide foldMap" in {
+      foldMap(None)(identity)(intAddition) === 0
+      foldMap(Some(15))(identity)(intAddition) === 15
+      foldMap(Some(12345))(_.toString)(stringMonoid) === "12345"
+    }
+ 
+    "provide concatenate" in {
+      concatenate(None)(intAddition) === 0
+      concatenate(Some(15))(intAddition) === 15
+      concatenate(Some("12345"))(stringMonoid) === "12345"
+    }
+ 
+    "provide toList" in {
+      toList(None) === Nil
+      toList(Some(1)) === List(1)
+      toList(Some("one")) === List("one")
+    }
+  }
+
+  "Exercise 10.16" p
+
+  "productMonoid" should {
+    "adhere to the monoid laws" in {
+      val intStringTupleGen: Gen[(Int, String)] =
+        for { i <- Gen.choose(-100, 100); s <- Gen.string() }
+	  yield (i, s)
+
+      monoidLaws(productMonoid(intAddition, stringMonoid), intStringTupleGen) must pass
     }
   }
 
