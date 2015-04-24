@@ -67,6 +67,21 @@ object Monoid {
     opsAssociativity && zeroIdentity
   }
 
+  def monoidLaws[A,B](m: Monoid[A => B], g: Gen[A => B], paramGen: Gen[A]): Prop = {
+    val opsAssociativity = Prop.forAll {
+      for { a <- g; b <- g; c <- g; param <- paramGen } yield (a, b, c, param)
+    } {
+      case (a, b, c, param) => m.op(m.op(a, b), c)(param) == m.op(a, m.op(b, c))(param)
+    }
+
+    val zeroIdentity = Prop.forAll {
+      for { a <- g; param <- paramGen } yield (a, param)
+    } {
+      case (a, param) => m.op(m.zero, a)(param) == m.op(a, m.zero)(param)
+    }
+
+    opsAssociativity && zeroIdentity
+  }
 
   def trimMonoid(s: String): Monoid[String] = sys.error("todo")
 
@@ -162,13 +177,24 @@ object Monoid {
     }
 
   def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] =
-    sys.error("todo")
+    new Monoid[A => B] {
+      def op(l: A => B, r: A => B) = (a: A) => B.op(l(a), r(a))
+      val zero = (a: A) => B.zero
+    }
 
   def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] =
-    sys.error("todo")
+    new Monoid[Map[K, V]] {
+      val zero = Map[K,V]()
+      def op(a: Map[K, V], b: Map[K, V]) =
+        (a.keySet ++ b.keySet).foldLeft(zero) { (acc,k) =>
+          acc.updated(k, V.op(a.getOrElse(k, V.zero),
+                              b.getOrElse(k, V.zero)))
+        }
+    }
 
   def bag[A](as: IndexedSeq[A]): Map[A, Int] =
-    sys.error("todo")
+    IndexedSeqFoldable.
+      foldMap(as)(a => Map(a -> 1))(mapMergeMonoid(intAddition))
 }
 
 trait Foldable[F[_]] {

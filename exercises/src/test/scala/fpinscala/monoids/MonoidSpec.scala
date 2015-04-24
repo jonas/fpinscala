@@ -65,18 +65,7 @@ class MonoidSpec extends Specification with Matchers {
 
       val m: Monoid[Int => Int] = endoMonoid
 
-      // monoidLaws(endoMonoid: Monoid[Int => Int], endoGen) must pass
-      Prop.forAll {
-        for (a <- endoGen; b <- endoGen; c <- endoGen; int <- Gen.choose(-100, 100))
-          yield (a, b, c, int)
-      } {
-        case (a, b, c, int) => m.op(m.op(a, b), c)(int) == m.op(a, m.op(b, c))(int)
-      } &&
-      Prop.forAll {
-        for (a <- endoGen; int <- Gen.choose(-100, 100)) yield (a, int)
-      }{
-        case (a, int) => m.op(m.zero, a)(int) == m.op(a, m.zero)(int)
-      } must pass
+      monoidLaws(endoMonoid: Monoid[Int => Int], endoGen, Gen.choose(-100, 100)) must pass
     }
   }
 
@@ -378,6 +367,30 @@ they work.
 	  yield (i, s)
 
       monoidLaws(productMonoid(intAddition, stringMonoid), intStringTupleGen) must pass
+    }
+  }
+
+  "Exercise 10.17" p
+
+  "functionMonoid" should {
+    "adhere to the monoid laws" in {
+      val fnGen: Gen[Int => String] =
+        for (g <- Gen.choose(-100, 100))
+          yield new Function1[Int, String] {
+            def apply(x: Int) = s"Int($g)"
+            override def toString = s"g=$g"
+          }
+
+      monoidLaws(functionMonoid(stringMonoid): Monoid[Int => String],
+                 fnGen, Gen.choose(-100, 100)) must pass
+    }
+  }
+
+  "Exercise 10.18" p
+
+  "bag" should {
+    "convert vector to map" in {
+      bag(Vector("a", "rose", "is", "a", "rose")) === Map("a" -> 2, "rose" -> 2, "is" -> 1)
     }
   }
 
