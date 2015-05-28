@@ -22,45 +22,57 @@ class MonadSpec extends Specification with Matchers {
 
   "Exercise 11.1" p
 
-  MonadSpecs("genMonad", genMonad, new IntMonadScopeWithResult[Gen, Option] {
+  implicit object GenMonadScope extends IntMonadScopeWithResult[Gen, Option] {
     def create(i: Int) = Gen.choose(i, i + 100)
     def run(ma: Gen[Int]) = Some(ma.sample.run(RNG.Simple(42))._1)
-  })
+    def runList(ma: Gen[List[Int]]) = Some(ma.sample.run(RNG.Simple(42))._1)
+  }
 
-  MonadSpecs("parMonad", parMonad, new IntMonadScopeWithResult[Par, Option] with ThreadPoolContext {
+  implicit object ParMonadScope extends IntMonadScopeWithResult[Par, Option] with ThreadPoolContext {
     def create(i: Int) = Par.lazyUnit(i)
     def run(ma: Par[Int]) = Some(Par.run(pool)(ma).get)
-  })
+    def runList(ma: Par[List[Int]]) = Some(Par.run(pool)(ma).get)
+  }
 
   type ErrorOr[A] = Either[ParseError, A]
 
-  MonadSpecs("parserMonad", parserMonad(KParsers), new MonadScope[String, Parser, ErrorOr] {
+  implicit object ParserMonadScope extends MonadScope[String, Parser, ErrorOr] {
     val gen = Gen.string('a', 'a')
     def create(s: String) = KParsers.string(s)
     def run(ma: Parser[String]) = KParsers.run(ma)("aaaaaaaaaaa")
-  })
+    def runList(ma: Parser[List[String]]) = KParsers.run(ma)("aaaaaaaa")
+  }
 
-  MonadSpecs("optionMonad", optionMonad, new IntMonadScope[Option] {
+  implicit object OptionMonadScope extends IntMonadScope[Option] {
     def create(i: Int) = if (i < 0) None else Some(i)
-  })
+  }
 
-  MonadSpecs("streamMonad", streamMonad, new IntMonadScope[Stream] {
+  implicit object StreamMonadScope extends IntMonadScope[Stream] {
     def create(i: Int) = Stream.from(i) take 50
-  })
+  }
 
-  MonadSpecs("listMonad", listMonad, new IntMonadScope[List] {
+  implicit object ListMonadScope extends IntMonadScope[List] {
     def create(i: Int) = if (i < 0) Nil else (0 to i) toList
-  })
+  }
 
-  MonadSpecs("idMonad", idMonad, new IntMonadScope[Id] {
+  implicit object IdMonadScope extends IntMonadScope[Id] {
     def create(i: Int) = Id(i)
-  })
+  }
+
+  MonadSpecs("genMonad", genMonad)
+  MonadSpecs("parMonad", parMonad)
+  MonadSpecs("parserMonad", parserMonad(KParsers))
+  MonadSpecs("optionMonad", optionMonad)
+  MonadSpecs("streamMonad", streamMonad)
+  MonadSpecs("listMonad", listMonad)
+  MonadSpecs("idMonad", idMonad)
 
   /* ========================== */
 
-  trait MonadScope[A, M[A], R[A]] extends Specification {
+  trait MonadScope[A, M[A], R[A]] {
     def create(a: A): M[A]
     def run(ma: M[A]): R[A]
+    def runList(ma: M[List[A]]): R[List[A]]
     def gen: Gen[A]
   }
 
@@ -70,15 +82,24 @@ class MonadSpec extends Specification with Matchers {
 
   trait IntMonadScope[M[Int]] extends IntMonadScopeWithResult[M, M] {
     def run(ma: M[Int]) = ma
+    def runList(ma: M[List[Int]]) = ma
   }
 
-  def MonadSpecs[A, M[A], R[A]](name: String, monad: Monad[M], scope: MonadScope[A, M, R]): Unit = {
+  def MonadSpecs[A, M[A], R[A]](name: String, monad: Monad[M])(implicit scope: MonadScope[A, M, R]): Unit = {
     type MonadFn = A => M[A]
     name should {
       "adhere to the monad laws" in {
         monadLaws(monad, scope) must pass
       }
 
+      "implement sequence" in {
+        Prop.forAll {
+          for { n <- Gen.choose(0, 10); l <- Gen.listOfN(n, scope.gen) } yield l
+        } {
+          case l =>
+	    scope.runList(monad.sequence(l.map(monad.unit(_)))) === scope.runList(monad.unit(l))
+        } must pass
+      }
     }
   }
 
