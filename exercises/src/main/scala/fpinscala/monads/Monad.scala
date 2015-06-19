@@ -35,8 +35,7 @@ trait Monad[M[_]] extends Functor[M] {
     flatMap(ma)(a => map(mb)(b => f(a, b)))
 
   def sequence[A](lma: List[M[A]]): M[List[A]] =
-    lma.foldRight(unit(List.empty[A]))(
-      (p, acc) => map2(p, acc)(_ :: _))
+    traverse(lma)(identity)
 
   def traverse[A,B](la: List[A])(f: A => M[B]): M[List[B]] =
     la.foldRight(unit(List.empty[B]))(
