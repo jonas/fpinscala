@@ -40,7 +40,7 @@ class MonadSpec extends Specification with Matchers {
     def run[B] = ma => KParsers.run(ma)("aaaaaaaaaaaaaaaaaaaaaaaa")
   }
 
-  implicit object StateMonadScope extends IntMonadScopeWithResult[RNGState, Option] {
+  implicit object RNGStateMonadScope extends IntMonadScopeWithResult[RNGState, Option] {
     def genFrom = i => State.unit(i)
     def run[B] = ma => Some(ma.run(RNG.Simple(42))._1)
   }
@@ -69,6 +69,18 @@ class MonadSpec extends Specification with Matchers {
   MonadSpecs("listMonad", listMonad)
   MonadSpecs("idMonad", idMonad)
   MonadSpecs("stateMonad", stateMonad)
+
+  "readerMonad" should {
+    "allow composition" in {
+      val three = readerMonad[Int].unit(3)
+      val triple = readerMonad[Int].map(three)(_ * 3)
+      val thricePlus2 = readerMonad.map(triple)(_ + 2)
+
+      three.run(42) == 3 &&
+        triple.run(3) === 9 &&
+        thricePlus2.run(3) === 11
+    }
+  }
 
   /* ========================== */
 

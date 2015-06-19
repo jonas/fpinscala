@@ -127,7 +127,7 @@ object Monad {
       ma flatMap f
   }
 
-  def readerMonad[R] = ???
+  def readerMonad[R] = Reader.readerMonad[R]
 }
 
 case class Id[A](value: A) {
