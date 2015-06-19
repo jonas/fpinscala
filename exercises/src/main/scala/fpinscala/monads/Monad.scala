@@ -46,11 +46,11 @@ trait Monad[M[_]] extends Functor[M] {
 
   def filterM[A](ms: List[A])(f: A => M[Boolean]): M[List[A]] =
     ms.foldRight(unit(List.empty[A])) { (a, acc) =>
-      flatMap(f(a)) { p =>
+      map2(f(a), acc) { (p, tail) =>
         if (p)
-          map2(unit(a), acc)(_ :: _)
+          a :: tail
         else
-          acc
+          tail
       }
     }
 
