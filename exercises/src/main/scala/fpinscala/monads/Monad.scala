@@ -35,14 +35,12 @@ trait Monad[M[_]] extends Functor[M] {
     flatMap(ma)(a => map(mb)(b => f(a, b)))
 
   def sequence[A](lma: List[M[A]]): M[List[A]] =
-    lma.foldRight(unit(Nil:List[A]))((p, acc) => {
-      map2(p, acc)(_ :: _)
-    })
+    lma.foldRight(unit(List.empty[A]))(
+      (p, acc) => map2(p, acc)(_ :: _))
 
   def traverse[A,B](la: List[A])(f: A => M[B]): M[List[B]] =
-    la.foldRight(unit(Nil:List[B]))((p, acc) => {
-      map2(f(p), acc)(_ :: _)
-    })
+    la.foldRight(unit(List.empty[B]))(
+      (p, acc) => map2(f(p), acc)(_ :: _))
 
   def replicateM[A](n: Int, ma: M[A]): M[List[A]] =
     if (n <= 0)
@@ -51,14 +49,14 @@ trait Monad[M[_]] extends Functor[M] {
       map2(ma, replicateM(n - 1, ma))(_ :: _)
 
   def filterM[A](ms: List[A])(f: A => M[Boolean]): M[List[A]] =
-    ms.foldRight(unit(Nil:List[A]))((a, acc) => {
+    ms.foldRight(unit(List.empty[A])) { (a, acc) =>
       flatMap(f(a)) { p =>
         if (p)
           map2(unit(a), acc)(_ :: _)
         else
           acc
       }
-    })
+    }
 
   def compose[A,B,C](f: A => M[B], g: B => M[C]): A => M[C] =
     a => flatMap(f(a))(b => g(b))
@@ -140,10 +138,10 @@ object Reader {
   def readerMonad[R] = new Monad[({type f[x] = Reader[R,x]})#f] {
     def unit[A](a: => A): Reader[R,A] = Reader(_ => a)
     override def flatMap[A,B](st: Reader[R,A])(f: A => Reader[R,B]): Reader[R,B] =
-      Reader(r => {
+      Reader { r =>
         val b = f(st.run(r))
         b.run(r)
-      })
+      }
   }
 }
 
