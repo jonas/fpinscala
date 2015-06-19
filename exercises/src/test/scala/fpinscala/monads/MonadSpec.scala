@@ -70,6 +70,15 @@ class MonadSpec extends Specification with Matchers {
   MonadSpecs("idMonad", idMonad)
   MonadSpecs("stateMonad", stateMonad)
 
+  type IntReader[X] = Reader[Int, X]
+
+  implicit object ReaderMonadScope extends IntMonadScopeWithResult[IntReader, Option] {
+    def genFrom = i => Reader(_ => i)
+    def run[B] = ma => Some(ma.run(42))
+  }
+
+  MonadSpecs[Int, IntReader, Option]("readerMonad", readerMonad[Int])
+
   "readerMonad" should {
     "allow composition" in {
       val three = readerMonad[Int].unit(3)
